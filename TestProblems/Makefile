@@ -1,6 +1,8 @@
 # Use the MFEM build directory
-MFEM_DIR ?= /g/g20/tuckerh/software/MKLmfem/mfem
-MFEM_BUILD_DIR ?= /g/g20/tuckerh/software/MKLmfem/mfem/build_MKL_metis5
+MFEM_DIR ?= /home/tucker/software/glvis_mfem/mfem
+MFEM_BUILD_DIR ?= $(MFEM_DIR)/parallel_mumps_build
+#MFEM_DIR ?= /g/g20/tuckerh/software/MKLmfem/mfem
+#MFEM_BUILD_DIR ?= /g/g20/tuckerh/software/MKLmfem/mfem/build_MKL_metis5
 
 
 #MFEM_DIR ?= /g/g20/tuckerh/software/MKLmfem/mfem
@@ -71,6 +73,9 @@ TestProblem3: TestProblem3.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
 
 TestProblem4: TestProblem4.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
 	$(MFEM_CXX) $(MFEM_FLAGS) TestProblem4.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+TestProblem4a: TestProblem4a.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) TestProblem4a.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
 
 TestProblem5: TestProblem5.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
 	$(MFEM_CXX) $(MFEM_FLAGS) TestProblem5.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
