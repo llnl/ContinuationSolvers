@@ -1,17 +1,20 @@
-//                         Example Problem 1a
+//                         Example Problem 4
 //
 //
-// Compile with: make TestProblem1a
+// Compile with: make TestProblem4
 //
-// Sample runs: mpirun -np 4 ./TestProblem1a
+// Sample runs: mpirun -np 4 ./TestProblem4
 //
 //
 // Description: This example code demonstrates the use of the MFEM based
 //              interior-point solver to solve the
 //              bound-constrained minimization problem
 //
-//              minimize_(u \in R^n) 1/2 u^T u subject to a^T u = -rho
-
+//              minimize_(u \in R^n) 1/2 u^T u subject to a^T u - \rho = 0
+// A simpler version of this example problem can be found in 
+// TestProblem4a which utilizes the
+// EqualityConstrainedHomotopyProblem a class derived specifically for
+// utilizing the HomotopySolver for problems that do not have complementarity constraints
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
