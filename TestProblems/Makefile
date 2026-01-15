@@ -91,4 +91,4 @@ $(MFEM_LIB_FILE):
 
 .PHONY: clean
 clean:
-	rm -f *.o $(PROB_DIR)/*.o $(SOLVER_DIR)/*.o $(TEST_LIB_DIR)/*.o $(TEST_LIB_DIR)/*.a TestProblem1 TestProblem1a TestProblem2 TestProblem3 TestProblem4 TestProblem5 LibTestProblem
+	rm -f *.o $(PROB_DIR)/*.o $(SOLVER_DIR)/*.o $(TEST_LIB_DIR)/*.o $(TEST_LIB_DIR)/*.a TestProblem1 TestProblem1a TestProblem1b TestProblem1c TestProblem2 TestProblem3 TestProblem4 TestProblem4a TestProblem5 LibTestProblem
