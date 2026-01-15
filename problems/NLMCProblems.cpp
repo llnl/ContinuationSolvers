@@ -357,7 +357,15 @@ void EqualityConstrainedHomotopyProblem::Q(const mfem::Vector& x, const mfem::Ve
      }
      auto constraint_eval = constraint(ufull_, new_pt);
      qblock.GetBlock(1).Set(-1.0, constraint_eval);
-     auto residual_contribution = constraintJacobianTvp(ufull_, l, new_pt);
+     // if constraint has also cached derivative values
+     // then we let the constraint know that this is not a new point but
+     // that we should determine a new derivative
+     // however the problem class can control whether or not
+     // it will compute a new derivative
+     // if the point is not new then it can choose to not compute a new derivative
+     bool new_constraint_pt = false;
+     bool new_constraint_deriv = new_pt;
+     auto residual_contribution = constraintJacobianTvp(ufull_, l, new_constraint_pt, new_constraint_deriv);
      if (has_essential_dofs)
      {
        restriction_->AddMult(residual_contribution, qblock.GetBlock(0));
@@ -416,6 +424,7 @@ mfem::Operator* EqualityConstrainedHomotopyProblem::DyQ(const mfem::Vector& /*x*
     delete dQdy;
   }
   {
+    bool new_deriv = new_pt;
     if (has_essential_dofs)
     {
       prolongation_->Mult(u, ufull_);
@@ -429,26 +438,25 @@ mfem::Operator* EqualityConstrainedHomotopyProblem::DyQ(const mfem::Vector& /*x*
     mfem::Array2D<const mfem::HypreParMatrix*> BlockMat(2, 2);
     
     mfem::HypreParMatrix * drdu = nullptr;
-    auto drdufull = residualJacobian(ufull_, new_pt);
     if (has_essential_dofs)
     {
-       auto drdufull = residualJacobian(ufull_, new_pt);    
+       auto drdufull = residualJacobian(ufull_, new_pt, new_deriv);    
        drdu = mfem::RAP(drdufull, prolongation_.get());
     }
     else
     {
-       drdu = residualJacobian(ufull_, new_pt);
+       drdu = residualJacobian(ufull_, new_pt, new_deriv);
     }
     
     mfem::HypreParMatrix * dcdu = nullptr;
     if (has_essential_dofs)
     {
-       auto dcdufull = constraintJacobian(ufull_, new_pt);
+       auto dcdufull = constraintJacobian(ufull_, new_pt, new_deriv);
        dcdu = mfem::ParMult(dcdufull, prolongation_.get(), true);
     }
     else
     {
-       dcdu = constraintJacobian(ufull_, new_pt);
+       dcdu = constraintJacobian(ufull_, new_pt, new_deriv);
     }
     auto dcduT = dcdu->Transpose();
     (*dcdu) *= -1.0; 

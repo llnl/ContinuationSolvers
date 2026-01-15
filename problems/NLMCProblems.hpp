@@ -103,10 +103,10 @@ public:
    void SetSizes(int dimu, int dimc);
    void SetSizes(HYPRE_BigInt * uOffsets, HYPRE_BigInt * cOffsets);
    virtual mfem::Vector residual(const mfem::Vector & u, bool new_pt) const = 0;
-   virtual mfem::Vector constraintJacobianTvp(const mfem::Vector &u, const mfem::Vector & l, bool new_pt) const = 0;
-   virtual mfem::HypreParMatrix * residualJacobian(const mfem::Vector & u, bool new_pt) = 0; 
+   virtual mfem::Vector constraintJacobianTvp(const mfem::Vector &u, const mfem::Vector & l, bool new_pt, bool new_deriv) const = 0;
+   virtual mfem::HypreParMatrix * residualJacobian(const mfem::Vector & u, bool new_pt, bool new_deriv) = 0; 
    virtual mfem::Vector constraint(const mfem::Vector & u, bool new_pt) const = 0;
-   virtual mfem::HypreParMatrix * constraintJacobian(const mfem::Vector & u, bool new_pt) = 0;
+   virtual mfem::HypreParMatrix * constraintJacobian(const mfem::Vector & u, bool new_pt, bool new_deriv) = 0;
    void F(const mfem::Vector &x, const mfem::Vector &y, mfem::Vector &feval, int &eval_err, bool new_pt = true) const override;
    void Q(const mfem::Vector &x, const mfem::Vector &y, mfem::Vector &qeval, int &eval_err, bool new_pt = true) const override;
    mfem::Operator * DxF(const mfem::Vector &/*x*/, const mfem::Vector &/*y*/, bool /*new_pt*/ = true) override { return dFdx; };
