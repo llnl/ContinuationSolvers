@@ -127,7 +127,7 @@ int main(int argc, char *argv[])
 // Ex4Problem
 Ex4Problem::Ex4Problem(int n) : EqualityConstrainedHomotopyProblem() 
 {
-  MFEM_VERIFY(n >= 1, "Ex4Problem::Ex4Problem -- problem must have nontrivial size");
+  MFEM_VERIFY(n >= 1, "Ex4Problem::Ex4Problem -- problem must have nontrivial global size");
 	
   // generate parallel partition  
   int nprocs = Mpi::WorldSize();
@@ -168,7 +168,7 @@ Ex4Problem::Ex4Problem(int n) : EqualityConstrainedHomotopyProblem()
   Vector one(dimu_); one = 1.0;
   I = GenerateHypreParMatrixFromDiagonal(uOffsets, one);
   a.SetSize(dimu_); a = 10.0;
-  rho = 100.;
+  rho = 1.e2;
 
   int nentries = dimuglb_;
   if (dimc_ == 0)
