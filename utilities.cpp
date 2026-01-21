@@ -295,7 +295,9 @@ void DirectSolver::SetOperator(const mfem::Operator& op)
 #else
    MFEM_ABORT("DirectSolver will not work unless compiled mfem is with MUMPS, MKL_CPARDISO, or STRUMPACK");
 #endif
+#if defined(MFEM_USE_STRUMPACK) || defined(MFEM_USE_MUMPS) || defined(MFEM_USE_MKL_CPARDISO)
    solver = directSolver;
+#endif
 }
 
 void DirectSolver::Mult(const mfem::Vector &b, mfem::Vector &x) const 
