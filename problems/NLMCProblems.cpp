@@ -364,7 +364,7 @@ void EqualityConstrainedHomotopyProblem::Q(const mfem::Vector& x, const mfem::Ve
      // it will compute a new derivative
      // if the point is not new then it can choose to not compute a new derivative
      bool new_constraint_pt = false;
-     bool new_constraint_deriv = new_pt;
+     bool new_constraint_deriv = true;
      auto residual_contribution = constraintJacobianTvp(ufull_, l, new_constraint_pt, new_constraint_deriv);
      if (has_essential_dofs)
      {
@@ -420,56 +420,59 @@ mfem::Operator* EqualityConstrainedHomotopyProblem::DyQ(const mfem::Vector& /*x*
   yblock.Set(1.0, y);
   auto u = yblock.GetBlock(0);
 
-  if (dQdy) {
-    delete dQdy;
-  }
+  if (new_pt)
   {
-    bool new_deriv = new_pt;
-    if (has_essential_dofs)
-    {
-      prolongation_->Mult(u, ufull_);
-      ufull_.Add(1.0, uDC_);
+    if (dQdy) {
+      delete dQdy;
     }
-    else
     {
-      ufull_.Set(1.0, u);
-    }
-    
-    mfem::Array2D<const mfem::HypreParMatrix*> BlockMat(2, 2);
-    
-    mfem::HypreParMatrix * drdu = nullptr;
-    if (has_essential_dofs)
-    {
-       auto drdufull = residualJacobian(ufull_, new_pt, new_deriv);    
-       drdu = mfem::RAP(drdufull, prolongation_.get());
-    }
-    else
-    {
-       drdu = residualJacobian(ufull_, new_pt, new_deriv);
-    }
-    
-    mfem::HypreParMatrix * dcdu = nullptr;
-    if (has_essential_dofs)
-    {
-       auto dcdufull = constraintJacobian(ufull_, new_pt, new_deriv);
-       dcdu = mfem::ParMult(dcdufull, prolongation_.get(), true);
-    }
-    else
-    {
-       dcdu = constraintJacobian(ufull_, new_pt, new_deriv);
-    }
-    auto dcduT = dcdu->Transpose();
-    (*dcdu) *= -1.0; 
-    BlockMat(0, 0) = drdu;
-    BlockMat(0, 1) = dcduT;
-    BlockMat(1, 0) = dcdu; 
-    BlockMat(1, 1) = nullptr;
-    dQdy = HypreParMatrixFromBlocks(BlockMat);
-    delete dcduT;
-    if (has_essential_dofs)
-    {
-      delete dcdu;
-      delete drdu;
+      bool new_deriv = new_pt;
+      if (has_essential_dofs)
+      {
+        prolongation_->Mult(u, ufull_);
+        ufull_.Add(1.0, uDC_);
+      }
+      else
+      {
+        ufull_.Set(1.0, u);
+      }
+      
+      mfem::Array2D<const mfem::HypreParMatrix*> BlockMat(2, 2);
+      
+      mfem::HypreParMatrix * drdu = nullptr;
+      if (has_essential_dofs)
+      {
+         auto drdufull = residualJacobian(ufull_, new_pt, new_deriv);    
+         drdu = mfem::RAP(drdufull, prolongation_.get());
+      }
+      else
+      {
+         drdu = residualJacobian(ufull_, new_pt, new_deriv);
+      }
+      
+      mfem::HypreParMatrix * dcdu = nullptr;
+      if (has_essential_dofs)
+      {
+         auto dcdufull = constraintJacobian(ufull_, new_pt, new_deriv);
+         dcdu = mfem::ParMult(dcdufull, prolongation_.get(), true);
+      }
+      else
+      {
+         dcdu = constraintJacobian(ufull_, new_pt, new_deriv);
+      }
+      auto dcduT = dcdu->Transpose();
+      (*dcdu) *= -1.0; 
+      BlockMat(0, 0) = drdu;
+      BlockMat(0, 1) = dcduT;
+      BlockMat(1, 0) = dcdu; 
+      BlockMat(1, 1) = nullptr;
+      dQdy = HypreParMatrixFromBlocks(BlockMat);
+      delete dcduT;
+      if (has_essential_dofs)
+      {
+        delete dcdu;
+        delete drdu;
+      }
     }
   }
   
