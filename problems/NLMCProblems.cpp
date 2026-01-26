@@ -545,3 +545,380 @@ EqualityConstrainedHomotopyProblem::~EqualityConstrainedHomotopyProblem()
      delete adjoint_solver;
   }
 };
+
+/* ----- InequalityConstrainedHomotopyProblem ----- */
+InequalityConstrainedHomotopyProblem::InequalityConstrainedHomotopyProblem()
+{
+   InequalityConstrainedHomotopyInit();
+};
+
+void InequalityConstrainedHomotopyProblem::InequalityConstrainedHomotopyInit()
+{
+   //y_partition.SetSize(3);
+   //adjoint_solver = new DirectSolver();
+   fixed_tdof_list_.SetSize(0);
+   disp_tdof_list_.SetSize(0);
+   uDC_.SetSize(0);
+};
+
+
+InequalityConstrainedHomotopyProblem::InequalityConstrainedHomotopyProblem(mfem::Array<int> fixed_tdof_list, mfem::Array<int> disp_tdof_list, const mfem::Vector uDC)
+{
+  InequalityConstrainedHomotopyInit();
+  fixed_tdof_list_ = fixed_tdof_list;
+  disp_tdof_list_ = disp_tdof_list;
+  uDC_ = uDC;
+  has_essential_dofs = true;  
+};
+
+void InequalityConstrainedHomotopyProblem::SetSizes(int dimu, int dimc)
+{ 
+  std::unique_ptr<HYPRE_BigInt> uOffsets;
+  uOffsets.reset(offsetsFromLocalSizes(dimu, MPI_COMM_WORLD));
+  
+  std::unique_ptr<HYPRE_BigInt[]> cOffsets = std::make_unique<HYPRE_BigInt[]>(2);
+  HYPRE_BigInt cOffset = 0;
+  MPI_Scan(&dimc, &cOffset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+  cOffset -= dimc;
+  cOffsets[0] = cOffset;
+  cOffsets[1] = cOffsets[0] + dimc;
+  SetSizes(uOffsets.get(), cOffsets.get());
+}
+
+
+
+void InequalityConstrainedHomotopyProblem::SetSizes(HYPRE_BigInt * uOffsets, HYPRE_BigInt * cOffsets)
+{
+   set_sizes = true;
+   dimu_ = uOffsets[1] - uOffsets[0];
+   dimc_ = cOffsets[1] - cOffsets[0];
+   MPI_Allreduce(&dimc_, &dimcglb_, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&dimu_, &dimuglb_, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+   Init(cOffsets, uOffsets);
+   
+   // dF / dx 0 x 0 matrix
+   {
+     int nentries = 0;
+     auto temp = new mfem::SparseMatrix(dimx, dimxglb, nentries);
+     dFdx = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsx, dofOffsetsx, temp);
+     delete temp;
+   }
+
+   q_cache.SetSize(dimy); q_cache = 0.0;
+   f_cache.SetSize(dimx); f_cache = 0.0;
+
+   // construct prolongation and restriction operators
+   dimufull_ = dimu_;
+   if (has_essential_dofs)
+   {
+      dimufull_ = uDC_.Size();
+   }
+   else
+   {
+      uDC_.SetSize(dimufull_);
+      uDC_ = 0.0;
+   }
+   ufull_.SetSize(dimufull_); ufull_ = 0.0;
+
+   // uDC should be a vector on the entire space (essential + non-essential dofs)
+   std::unique_ptr<HYPRE_BigInt> ufullOffsets;
+   ufullOffsets.reset(offsetsFromLocalSizes(dimufull_, MPI_COMM_WORLD)); 
+
+
+   // mask out essential dofs
+   std::unique_ptr<HYPRE_Int[]> mask = std::make_unique<HYPRE_Int[]>(static_cast<size_t>(dimufull_));
+   for (int i = 0; i < dimufull_; i++) {
+     mask[static_cast<size_t>(i)] = 1;
+   }
+   for (int i = 0; i < fixed_tdof_list_.Size(); i++) {
+     mask[static_cast<size_t>(fixed_tdof_list_[i])] = 0;
+   }
+   for (int i = 0; i < disp_tdof_list_.Size(); i++) {
+     mask[static_cast<size_t>(disp_tdof_list_[i])] = 0;
+   }
+
+   // now mask out any dofs that aren't disp BC dofs
+   std::unique_ptr<HYPRE_Int[]> dispmask = std::make_unique<HYPRE_Int[]>(static_cast<size_t>(dimufull_));
+   for (int i = 0; i < dimufull_; i++) {
+     dispmask[static_cast<size_t>(i)] = 0;
+   }
+   for (int i = 0; i < disp_tdof_list_.Size(); i++) {
+     dispmask[static_cast<size_t>(disp_tdof_list_[i])] = 1;
+   }
+
+   restriction_.reset(
+       GenerateProjector(dofOffsetsy, ufullOffsets.get(), mask.get()));
+
+   prolongation_.reset(restriction_->Transpose());
+
+   // need disp offsets
+   std::unique_ptr<HYPRE_BigInt> dispuOffsets;
+   dispuOffsets.reset(offsetsFromLocalSizes(disp_tdof_list_.Size(), MPI_COMM_WORLD));
+   disp_restriction_.reset(GenerateProjector(
+       dispuOffsets.get(), ufullOffsets.get(), dispmask.get()));
+
+   disp_prolongation_.reset(disp_restriction_->Transpose());
+
+   // remove any nonzero entries in dispBC vec that are not strictly needed
+   mfem::Vector RdispBC(disp_restriction_->Height());
+   disp_restriction_->Mult(uDC_, RdispBC);
+   disp_prolongation_->Mult(RdispBC, uDC_);
+};
+
+
+void InequalityConstrainedHomotopyProblem::F(const mfem::Vector& x, const mfem::Vector& y, mfem::Vector& feval, int& Feval_err, bool new_pt) const
+{
+   MFEM_VERIFY(set_sizes, "need to set sizes in problem constructor");
+   MFEM_VERIFY(x.Size() == dimx && y.Size() == dimy && feval.Size() == dimx,
+              "F -- Inconsistent dimensions");
+  Feval_err = 0;
+  if (new_pt)
+  {
+     try {
+     } catch (const std::runtime_error& e)
+     {
+	Feval_err = 1;
+     }
+     if (has_essential_dofs)
+     {
+       prolongation_->Mult(y, ufull_); // y = reduced/essential dofs
+       ufull_.Add(1.0, uDC_);
+     }
+     else
+     {
+       ufull_.Set(1.0, y);
+     }
+     auto constraint_eval = constraint(ufull_, new_pt);
+     f_cache.Set(1.0, constraint_eval);  
+  }
+  feval.Set(1.0, f_cache);
+};
+
+// Q(l, u) = (r(u) - (dc/du)^T l)
+void InequalityConstrainedHomotopyProblem::Q(const mfem::Vector& x, const mfem::Vector& y, mfem::Vector& qeval, int& Qeval_err, bool new_pt) const
+{
+  MFEM_VERIFY(set_sizes, "need to set sizes in problem constructor");
+  MFEM_VERIFY(x.Size() == dimx && y.Size() == dimy && qeval.Size() == dimy,
+              "Q -- Inconsistent dimensions");
+  Qeval_err = 0;
+  if (new_pt)
+  {
+     qeval = 0.0;
+     try {
+     if (has_essential_dofs)
+     {
+       prolongation_->Mult(y, ufull_);
+       ufull_.Add(1.0, uDC_);
+     }
+     else
+     {
+       ufull_.Set(1.0, y);
+     }
+     auto res_vec = residual(ufull_, new_pt);
+     if (has_essential_dofs)
+     {
+       restriction_->Mult(res_vec, qeval);
+     }
+     else
+     {
+       qeval.Set(1.0, res_vec);
+     }
+     // if constraint has also cached derivative values
+     // then we let the constraint know that this is not a new point but
+     // that we should determine a new derivative
+     // however the problem class can control whether or not
+     // it will compute a new derivative
+     // if the point is not new then it can choose to not compute a new derivative
+     bool new_constraint_pt = new_pt;
+     bool new_constraint_deriv = new_pt;
+     auto residual_contribution = constraintJacobianTvp(ufull_, x, new_constraint_pt, new_constraint_deriv);
+     residual_contribution *= -1.0;
+     if (has_essential_dofs)
+     {
+       restriction_->AddMult(residual_contribution, qeval);
+     }
+     else
+     {
+       qeval.Add(1.0, residual_contribution);
+     }
+
+     q_cache.Set(1.0, qeval);
+     } catch (const std::runtime_error& e)
+     {
+	Qeval_err = 1;
+     }
+  }
+  else
+  {
+     qeval.Set(1.0, q_cache);
+  }
+  if (Qeval_err == 0)
+  {
+     Qeval_err = 0;
+     int Qeval_err_loc = 0;
+     for (int i = 0; i < qeval.Size(); i++) {
+       if (std::isnan(qeval(i))) {
+         Qeval_err_loc = 1;
+         break;
+       }
+     }
+     MPI_Allreduce(&Qeval_err_loc, &Qeval_err, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+  }
+};
+
+
+// dFdy = dc/du
+// recomputation such as HypreParMatrixFromBlocks is done
+// at every DyF call independent of value of new_pt
+mfem::Operator* InequalityConstrainedHomotopyProblem::DyF(const mfem::Vector& /*x*/, const mfem::Vector& y, bool new_pt)
+{
+  MFEM_VERIFY(set_sizes, "need to set sizes in problem constructor");
+  MFEM_VERIFY(y.Size() == dimy, "InertialReliefProblem::DyF -- Inconsistent dimensions");
+  
+  // note we are neglecting Hessian constraint terms
+  if (new_pt)
+  {
+    if (dFdy) {
+      delete dFdy;
+    }
+    {
+      bool new_deriv = new_pt;
+      if (has_essential_dofs)
+      {
+        prolongation_->Mult(y, ufull_);
+        ufull_.Add(1.0, uDC_);
+      }
+      else
+      {
+        ufull_.Set(1.0, y);
+      }
+      
+      if (has_essential_dofs)
+      {
+         auto dFdyfull = constraintJacobian(ufull_, new_pt, new_deriv);
+         dFdy = mfem::ParMult(dFdyfull, prolongation_.get(), true);
+      }
+      else
+      {
+         dFdy = constraintJacobian(ufull_, new_pt, new_deriv);
+      }
+    }
+  }
+  
+  return dFdy;
+};
+
+
+// dQdx = -dc/du^T
+// recomputation such as HypreParMatrixFromBlocks is done
+// at every DyQ call independent of value of new_pt
+// recomputation may be avoided in the residualJacobian/constraintJacobian calls 
+mfem::Operator* InequalityConstrainedHomotopyProblem::DxQ(const mfem::Vector& /*x*/, const mfem::Vector& y, bool new_pt)
+{
+  MFEM_VERIFY(set_sizes, "need to set sizes in problem constructor");
+  MFEM_VERIFY(y.Size() == dimy, "InertialReliefProblem::DyQ -- Inconsistent dimensions");
+  
+  // note we are neglecting Hessian constraint terms
+  
+  if (new_pt)
+  {
+    if (dQdx) {
+      delete dQdx;
+    }
+    {
+      bool new_deriv = new_pt;
+      if (has_essential_dofs)
+      {
+        prolongation_->Mult(y, ufull_);
+        ufull_.Add(1.0, uDC_);
+      }
+      else
+      {
+        ufull_.Set(1.0, y);
+      }
+      
+      mfem::HypreParMatrix * dcdu = nullptr;
+      if (has_essential_dofs)
+      {
+         auto dcdufull = constraintJacobian(ufull_, new_pt, new_deriv);
+         dcdu = mfem::ParMult(dcdufull, prolongation_.get(), true);
+      }
+      else
+      {
+         dcdu = constraintJacobian(ufull_, new_pt, new_deriv);
+      }
+      dQdx = dcdu->Transpose();
+      (*dQdx) *= -1.0; 
+      if (has_essential_dofs)
+      {
+        delete dcdu;
+      }
+    }
+  }
+  return dQdx;
+};
+
+
+// dQdy = dr/du
+// recomputation such as HypreParMatrixFromBlocks is done
+// at every DyQ call independent of value of new_pt
+// recomputation may be avoided in the residualJacobian/constraintJacobian calls 
+mfem::Operator* InequalityConstrainedHomotopyProblem::DyQ(const mfem::Vector& /*x*/, const mfem::Vector& y, bool new_pt)
+{
+  MFEM_VERIFY(set_sizes, "need to set sizes in problem constructor");
+  MFEM_VERIFY(y.Size() == dimy, "InertialReliefProblem::DyQ -- Inconsistent dimensions");
+  
+  // note we are neglecting Hessian constraint terms
+  
+  if (new_pt)
+  {
+    if (dQdy) {
+      delete dQdy;
+    }
+    {
+      bool new_deriv = new_pt;
+      if (has_essential_dofs)
+      {
+        prolongation_->Mult(y, ufull_);
+        ufull_.Add(1.0, uDC_);
+      }
+      else
+      {
+        ufull_.Set(1.0, y);
+      }
+      
+      if (has_essential_dofs)
+      {
+         auto drdufull = residualJacobian(ufull_, new_pt, new_deriv);    
+         dQdy = mfem::RAP(drdufull, prolongation_.get());
+      }
+      else
+      {
+         dQdy = residualJacobian(ufull_, new_pt, new_deriv);
+      }
+    }
+  }
+  
+  return dQdy;
+};
+
+InequalityConstrainedHomotopyProblem::~InequalityConstrainedHomotopyProblem()
+{
+  if (set_sizes)
+  {
+     delete dFdx;
+  }
+  if (dFdy)
+  {
+     delete dFdy;
+  }
+  if (dQdx)
+  {
+     delete dQdx;
+  }
+  if (dQdy)
+  {
+     delete dQdy;
+  }
+};
