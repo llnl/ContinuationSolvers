@@ -18,9 +18,9 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "../problems/Problems.hpp"
-#include "../solvers/HomotopySolver.hpp"
-#include "../utilities.hpp"
+#include "../continuationsolvers/problems/Problems.hpp"
+#include "../continuationsolvers/solvers/HomotopySolver.hpp"
+#include "../continuationsolvers/utilities.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -78,9 +78,9 @@ int main(int argc, char *argv[])
    real_t nmcpSolverTol = 1.e-8;
    int nmcpSolverMaxIter = 30;
    args.AddOption(&n, "-n", "--n", 
-		   "Size of optimization variable.");
+        	   "Size of optimization variable.");
    args.AddOption(&nmcpSolverTol, "-nmcptol", "--nmcp-tol", 
-		   "Tolerance for NMCP solver.");
+        	   "Tolerance for NMCP solver.");
    args.AddOption(&nmcpSolverMaxIter, "-nmcpmaxiter", "--nmcp-maxiter",
                   "Maximum number of iterations for the NMCP solver.");
    args.Parse();

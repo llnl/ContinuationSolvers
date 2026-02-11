@@ -1,16 +1,9 @@
 # Use the MFEM build directory
 MFEM_DIR ?= /home/tucker/software/glvis_mfem/mfem
 MFEM_BUILD_DIR ?= $(MFEM_DIR)/parallel_mumps_build
-#MFEM_DIR ?= /g/g20/tuckerh/software/MKLmfem/mfem
-#MFEM_BUILD_DIR ?= /g/g20/tuckerh/software/MKLmfem/mfem/build_MKL_metis5
 
 
-#MFEM_DIR ?= /g/g20/tuckerh/software/MKLmfem/mfem
-#MFEM_BUILD_DIR ?= $(MFEM_DIR)/build_MKL_metis5
-
-#MFEM_DIR ?= /usr/workspace/tuckerh/mfem
-#MFEM_BUILD_DIR ?= $(MFEM_DIR)/buildMUMPS
-SRC=..
+SRC=../continuationsolvers
 
 
 
