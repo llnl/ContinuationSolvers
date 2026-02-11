@@ -39,24 +39,24 @@ include(${BLT_SOURCE_DIR}/SetupBLT.cmake)
 #endif()
 
 set(continuation_sources
-  problems/NLMCProblems.cpp
-  problems/OptProblems.cpp
-  solvers/HomotopySolver.cpp
-  solvers/CondensedHomotopySolver.cpp
-  solvers/IPSolver.cpp
-  solvers/AMGF.cpp
-  utilities.cpp)
+  continuationsolvers/problems/NLMCProblems.cpp
+  continuationsolvers/problems/OptProblems.cpp
+  continuationsolvers/solvers/HomotopySolver.cpp
+  continuationsolvers/solvers/CondensedHomotopySolver.cpp
+  continuationsolvers/solvers/IPSolver.cpp
+  continuationsolvers/solvers/AMGF.cpp
+  continuationsolvers/utilities.cpp)
 
 set(continuation_headers
-  problems/NLMCProblems.hpp
-  problems/OptProblems.hpp
-  problems/Problems.hpp
-  solvers/Solvers.hpp
-  solvers/HomotopySolver.hpp
-  solvers/CondensedHomotopySolver.hpp
-  solvers/IPSolver.hpp
-  solvers/AMGF.hpp
-  utilities.hpp)
+  continuationsolvers/problems/NLMCProblems.hpp
+  continuationsolvers/problems/OptProblems.hpp
+  continuationsolvers/problems/Problems.hpp
+  continuationsolvers/solvers/Solvers.hpp
+  continuationsolvers/solvers/HomotopySolver.hpp
+  continuationsolvers/solvers/CondensedHomotopySolver.hpp
+  continuationsolvers/solvers/IPSolver.hpp
+  continuationsolvers/solvers/AMGF.hpp
+  continuationsolvers/utilities.hpp)
 
 set(continuation_depends
   blt::mpi
@@ -73,20 +73,20 @@ target_include_directories(continuation_solver PUBLIC
   $<INSTALL_INTERFACE:include/continuationsolver>)
 
 set(continuation_problems_headers
-  problems/NLMCProblems.hpp
-  problems/OptProblems.hpp
-  problems/Problems.hpp)
+  continuationsolvers/problems/NLMCProblems.hpp
+  continuationsolvers/problems/OptProblems.hpp
+  continuationsolvers/problems/Problems.hpp)
 
 install(FILES ${continuation_problems_headers} DESTINATION include/continuationsolver/problems)
 
 set(continuation_solvers_headers
-  solvers/Solvers.hpp
-  solvers/HomotopySolver.hpp
-  solvers/IPSolver.hpp)
+  continuationsolvers/solvers/Solvers.hpp
+  continuationsolvers/solvers/HomotopySolver.hpp
+  continuationsolvers/solvers/IPSolver.hpp)
 
 install(FILES ${continuation_solvers_headers} DESTINATION include/continuationsolver/solvers)
 
-install(FILES utilities.hpp DESTINATION include/continuationsolver)
+install(FILES continuationsolvers/utilities.hpp DESTINATION include/continuationsolver)
 
 install(
   TARGETS     continuation_solver
