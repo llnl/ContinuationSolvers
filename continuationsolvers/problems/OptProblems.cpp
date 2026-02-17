@@ -167,53 +167,56 @@ ObstacleProblem::ObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
 
 // Obstacle Problem, essential boundary conditions enforced
 // Hessian of energy term is K (stiffness)
-//ObstacleProblem::ObstacleProblem(ParFiniteElementSpace *fesU_, 
-//                                       ParFiniteElementSpace *fesM_, 
-//				       double (*fSource)(const Vector &),
-//				       double (*obstacleSource)(const Vector &),
-//				       Array<int> tdof_list, Vector &xDC) : OptProblem()
-//{
-//   Init(fesU_->GetTrueDofOffsets(), fesM_->GetTrueDofOffsets());
-//   // elastic energy functional terms	
-//   ess_tdof_list = tdof_list;
-//   Kform = new ParBilinearForm(fesU);
-//   Kform->AddDomainIntegrator(new DiffusionIntegrator);
-//   Kform->Assemble();
-//   Kform->Finalize();
-//   Kform->FormSystemMatrix(ess_tdof_list, K);
-//
-//   FunctionCoefficient fcoeff(fSource);
-//   fform = new ParLinearForm(fesU);
-//   fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
-//   fform->Assemble();
-//   Vector F(dimU);
-//   fform->ParallelAssemble(F);
-//   f.SetSize(dimU);
-//   f.Set(1.0, F);
-//   Kform->EliminateVDofsInRHS(ess_tdof_list, xDC, f);
-//   
-//   // obstacle constraints --  
-//   Vector iDiag(dimU); iDiag = 1.0;
-//   for(int i = 0; i < ess_tdof_list.Size(); i++)
-//   {
-//     iDiag(ess_tdof_list[i]) = 0.0;
-//   }
-//   SparseMatrix * Jacg = new SparseMatrix(iDiag);
-//
-//   J = new HypreParMatrix(fesU->GetComm(), dofOffsetsU, dofOffsetsU, Jacg);
-//   HypreStealOwnership(*J, *Jacg);
-//   delete Jacg;
-//
-//   FunctionCoefficient psi_fc(obstacleSource);
-//   ParGridFunction psi_gf(fesU);
-//   psi_gf.ProjectCoefficient(psi_fc);
-//   psi.SetSize(dimU);
-//   psi.Set(1.0, (*psi_gf.GetTrueDofs()));
-//   for(int i = 0; i < ess_tdof_list.Size(); i++)
-//   {
-//     psi(ess_tdof_list[i]) -= 1.e-8;
-//   }
-//}
+ObstacleProblem::ObstacleProblem(mfem::ParFiniteElementSpace *fesU_, 
+                                       mfem::ParFiniteElementSpace *fesM_, 
+				       double (*fSource)(const mfem::Vector &),
+				       double (*obstacleSource)(const mfem::Vector &),
+				       mfem::Array<int> tdof_list, mfem::Vector &xDC) : OptProblem()
+{
+   Init(fesU_->GetTrueDofOffsets(), fesM_->GetTrueDofOffsets());
+   // elastic energy functional terms	
+   ess_tdof_list = tdof_list;
+   Kform = new mfem::ParBilinearForm(fesU_);
+   Kform->AddDomainIntegrator(new mfem::DiffusionIntegrator);
+   Kform->Assemble();
+   Kform->Finalize();
+   Kform->FormSystemMatrix(ess_tdof_list, K);
+
+   mfem::FunctionCoefficient fcoeff(fSource);
+   fform = new mfem::ParLinearForm(fesU_);
+   fform->AddDomainIntegrator(new mfem::DomainLFIntegrator(fcoeff));
+   fform->Assemble();
+   mfem::Vector F(dimU);
+   fform->ParallelAssemble(F);
+   f.SetSize(dimU);
+   f.Set(1.0, F);
+   Kform->EliminateVDofsInRHS(ess_tdof_list, xDC, f);
+   
+   // obstacle constraints --  
+   mfem::Vector iDiag(dimU); iDiag = 1.0;
+   for(int i = 0; i < ess_tdof_list.Size(); i++)
+   {
+     iDiag(ess_tdof_list[i]) = 0.0;
+   }
+   J = GenerateHypreParMatrixFromDiagonal(dofOffsetsU, iDiag);
+
+   mfem::FunctionCoefficient psi_fc(obstacleSource);
+   mfem::ParGridFunction psi_gf(fesU_);
+   psi_gf.ProjectCoefficient(psi_fc);
+   psi.SetSize(dimU);
+   psi.Set(1.0, (*psi_gf.GetTrueDofs()));
+   /*
+    Not eliminating dofs is great with regard to the application of linear solvers e.g., AMG
+    However, we need to be careful that we don't have u_i = 0 (essential BC) and
+    u_i >= 0, as with the application of the interior-point method we will encounter singularities
+    \log( u_i = 0)
+   */
+
+   for(int i = 0; i < ess_tdof_list.Size(); i++)
+   {
+     psi(ess_tdof_list[i]) -= 1.e-8;
+   }
+}
 
 
 

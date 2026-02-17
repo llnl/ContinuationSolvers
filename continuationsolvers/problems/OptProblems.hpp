@@ -118,7 +118,7 @@ protected:
    mfem::Vector psi;
 public :
    ObstacleProblem(mfem::ParFiniteElementSpace*, mfem::ParFiniteElementSpace*, double (*fSource)(const mfem::Vector &));
-   //ObstacleProblem(mfem::ParFiniteElementSpace*, mfem::ParFiniteElementSpace*, double (*fSource)(const mfem::Vector &), double (*obstacleSource)(const mfem::Vector &), mfem::Array<int> tdof_list, mfem::Vector &);
+   ObstacleProblem(mfem::ParFiniteElementSpace*, mfem::ParFiniteElementSpace*, double (*fSource)(const mfem::Vector &), double (*obstacleSource)(const mfem::Vector &), mfem::Array<int> tdof_list, mfem::Vector &);
    double E(const mfem::Vector &, int &);
    void DdE(const mfem::Vector &, mfem::Vector &);
    mfem::Operator* DddE(const mfem::Vector &);

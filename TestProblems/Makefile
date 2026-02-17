@@ -76,6 +76,9 @@ TestProblem5: TestProblem5.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
 TestObstacleProblem: TestObstacleProblem.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
 	$(MFEM_CXX) $(MFEM_FLAGS) TestObstacleProblem.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
 
+TestSphericalObstacleProblem: TestSphericalObstacleProblem.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) TestSphericalObstacleProblem.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
 LibTestProblem: LibTestProblem.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
 	cd $(TESTLIB_DIR); make diablolib.a;
 	$(MFEM_CXX) $(MFEM_FLAGS) LibTestProblem.o $(FRAMEWORK_OBJS) -o $@ lib/diablolib.a $(MFEM_LIBS)
