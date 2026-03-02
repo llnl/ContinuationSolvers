@@ -386,3 +386,89 @@ ReducedOptProblem::~ReducedOptProblem()
 }
 
 
+// min E(d) s.t. g(d) = 0
+OptEqProblem::OptEqProblem() : GeneralOptProblem()
+{
+}
+
+void OptEqProblem::Init(HYPRE_BigInt * dofOffsetsU_, HYPRE_BigInt * dofOffsetsC_)
+{
+  dofOffsetsU = new HYPRE_BigInt[2];
+  dofOffsetsM = new HYPRE_BigInt[2];
+  dofOffsetsC = new HYPRE_BigInt[2];
+  
+  for(int i = 0; i < 2; i++)
+  {
+    dofOffsetsU[i] = dofOffsetsU_[i];
+    dofOffsetsC[i] = dofOffsetsC_[i];
+    dofOffsetsM[i] = 0;
+  }
+
+  dimU = dofOffsetsU[1] - dofOffsetsU[0];
+  dimM = dofOffsetsM[1] - dofOffsetsM[0];
+  dimC = dofOffsetsC[1] - dofOffsetsC[0];
+  
+  block_offsetsx[0] = 0;
+  block_offsetsx[1] = dimU;
+  block_offsetsx[2] = dimM;
+  block_offsetsx.PartialSum();
+
+  MPI_Allreduce(&dimU, &dimUglb, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+  dimMglb = 0;
+  
+  ml.SetSize(dimM); ml = 0.0;
+  
+  {
+     int nentries = 0;
+     auto temp_sparsemat = new mfem::SparseMatrix(dimC, dimMglb, nentries);
+     dcdm = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsC, dofOffsetsM, temp_sparsemat);
+     delete temp_sparsemat;
+  }
+}
+
+
+double OptEqProblem::CalcObjective(const mfem::BlockVector &x, int & eval_err)
+{ 
+   return E(x.GetBlock(0), eval_err); 
+}
+
+
+void OptEqProblem::Duf(const mfem::BlockVector &x, mfem::Vector &y) { DdE(x.GetBlock(0), y); }
+
+void OptEqProblem::Dmf(const mfem::BlockVector & /*x*/, mfem::Vector &y) { y = 0.0; }
+
+mfem::Operator * OptEqProblem::Duuf(const mfem::BlockVector &x) 
+{ 
+   return DddE(x.GetBlock(0)); 
+}
+
+mfem::Operator * OptEqProblem::Dumf(const mfem::BlockVector &/*x*/) { return nullptr; }
+
+mfem::Operator * OptEqProblem::Dmuf(const mfem::BlockVector &/*x*/) { return nullptr; }
+
+mfem::Operator * OptEqProblem::Dmmf(const mfem::BlockVector &/*x*/) { return nullptr; }
+
+// c(u, m) = g(u)
+void OptEqProblem::c(const mfem::BlockVector &x, mfem::Vector &y, int & eval_err) 
+{
+   g(x.GetBlock(0), y, eval_err);
+}
+
+
+mfem::Operator * OptEqProblem::Duc(const mfem::BlockVector &x) 
+{ 
+   return Ddg(x.GetBlock(0)); 
+}
+
+mfem::Operator * OptEqProblem::Dmc(const mfem::BlockVector &/*x*/) 
+{ 
+   return dcdm;
+} 
+
+OptEqProblem::~OptEqProblem() 
+{
+  delete[] dofOffsetsU;
+  delete[] dofOffsetsM;
+  delete[] dofOffsetsC;
+  delete dcdm;
+}

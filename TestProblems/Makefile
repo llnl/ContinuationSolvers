@@ -57,6 +57,9 @@ TestProblem1b: TestProblem1b.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
 TestProblem1c: TestProblem1c.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
 	$(MFEM_CXX) $(MFEM_FLAGS) TestProblem1c.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
 
+TestProblem1d: TestProblem1d.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) TestProblem1d.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
 
 TestProblem2: TestProblem2.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
 	$(MFEM_CXX) $(MFEM_FLAGS) TestProblem2.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
