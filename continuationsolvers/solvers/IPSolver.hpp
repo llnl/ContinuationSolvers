@@ -50,8 +50,9 @@ protected:
     bool initializedl;
     bool initializedzl;
     mfem::Vector minit, linit, zlinit;
-    double linSolveTol;
     std::ostream * ipout = &std::cout;
+
+    bool fullLagrangianHessian = false;
 public:
     InteriorPointSolver(GeneralOptProblem*);
     double MaxStepSize(mfem::Vector& , mfem::Vector& , mfem::Vector& , double);

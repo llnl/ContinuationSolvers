@@ -83,7 +83,6 @@ InteriorPointSolver::InteriorPointSolver(GeneralOptProblem * problem_)
    initializedzl = false;
    minit.SetSize(dimM); linit.SetSize(dimC); zlinit.SetSize(dimM);
 
-   linSolveTol = 1.e-8;
    MyRank = mfem::Mpi::WorldRank();
    iAmRoot = MyRank == 0 ? true : false;
 }
@@ -254,7 +253,7 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0, mfem::BlockVector &x
          {
             if(iAmRoot)
             {
-               *ipout << "solved barrier subproblem :), for mu = " << mu_k << std::endl;
+               *ipout << "solved barrier subproblem, for mu = " << mu_k << std::endl;
             }
             // A-3.1. Recompute the barrier parameteri
             double mu_k_new = std::max(OptTol / 10., std::min(kMu * mu_k, pow(mu_k, thetaMu)));
@@ -283,7 +282,7 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0, mfem::BlockVector &x
       // solve for (uhat, mhat, lhat)
       if(iAmRoot)
       {
-         *ipout << "\n** A-4. IP-Newton solve **\n";
+         *ipout << "\n** IP-Newton solve **\n";
       }
       zlhat = 0.0; Xhatuml = 0.0;
       IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k); 
@@ -306,7 +305,7 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0, mfem::BlockVector &x
       // A-5. Backtracking line search.
       if(iAmRoot)
       {
-         *ipout << "\n** A-5. Linesearch **\n";
+         *ipout << "\n** Linesearch **\n";
          *ipout << "mu = " << mu_k << std::endl;
       }
       lineSearch(Xk, Xhat, mu_k);
@@ -315,7 +314,7 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0, mfem::BlockVector &x
       {
          if(iAmRoot)
          {
-            *ipout << "lineSearch successful :)\n";
+            *ipout << "Linesearch successful\n";
          }
          if(!switchCondition || !sufficientDecrease)
          {
@@ -333,7 +332,7 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0, mfem::BlockVector &x
       {
          if(iAmRoot)
          {
-            *ipout << "lineSearch not successful :(\n";
+            *ipout << "Linesearch not successful\n";
             *ipout << "attempting feasibility restoration with theta = " << thx0 << std::endl;
             *ipout << "no feasibility restoration implemented, exiting now \n";
          }
@@ -353,10 +352,20 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0, mfem::BlockVector &x
 
 void InteriorPointSolver::FormIPNewtonMat(mfem::BlockVector & x, mfem::Vector & /*l*/, mfem::Vector &zl, mfem::BlockOperator &Ak)
 {
-   Huu = dynamic_cast<mfem::HypreParMatrix *>(problem->Duuf(x)); 
-   Hum = dynamic_cast<mfem::HypreParMatrix *>(problem->Dumf(x));
-   Hmu = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmuf(x));
-   Hmm = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmmf(x));
+   MFEM_VERIFY(!fullLagrangianHessian, "only supporting partial Lagrangian of the Hessian");
+   auto Huuf = dynamic_cast<mfem::HypreParMatrix *>(problem->Duuf(x)); 
+   auto Humf = dynamic_cast<mfem::HypreParMatrix *>(problem->Dumf(x));
+   auto Hmuf = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmuf(x));
+   auto Hmmf = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmmf(x));
+   if (!fullLagrangianHessian)
+   {
+     Huu = Huuf;
+     Hum = Humf;
+     Hmu = Hmuf;
+     Hmm = Hmmf;
+   }
+   // TODO: other option for full Hessian
+
 
    mfem::Vector DiagLogBar(dimM); DiagLogBar = 0.0;
    for (int ii = 0; ii < dimM; ii++)
@@ -756,15 +765,6 @@ void InteriorPointSolver::DxL(const mfem::BlockVector &x, const mfem::Vector &l,
    Jacu->MultTranspose(l, y.GetBlock(0));
    Jacm->MultTranspose(l, y.GetBlock(1));
    
-   //JacuT = Jacu->Transpose();
-   //JacmT = Jacm->Transpose();
-   //
-   //JacuT->Mult(l, y.GetBlock(0));
-   //JacmT->Mult(l, y.GetBlock(1));
-   //
-   //delete JacuT;
-   //delete JacmT;
-   
    y.Add(1.0, gradxf);
    (y.GetBlock(1)).Add(-1.0, zl);
 }
@@ -793,11 +793,6 @@ void InteriorPointSolver::SaveLogBarrierHessianIterates(bool save)
 {
    MFEM_ASSERT(MyRank == 0 || save == false, "currently can only save logbarrier hessian in serial codes");
    saveLogBarrierIterates = save;
-}
-
-void InteriorPointSolver::SetLinearSolveTol(double Tol)
-{
-  linSolveTol = Tol;
 }
 
 void InteriorPointSolver::GetLagrangeMultiplier(mfem::Vector & y)
