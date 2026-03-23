@@ -124,26 +124,25 @@ mfem::Operator * OptProblem::Dmc(const mfem::BlockVector &/*x*/)
    return Ih;
 } 
 
-//mfem::Operator * OptProblem::Duucl(const mfem::BlockVector &/*x*/)
-//{
-//   return nullptr;
-//}
-//
-//
-//mfem::Operator * OptProblem::Dumcl(const mfem::BlockVector &/*x*/)
-//{
-//   return nullptr;
-//}
-//
-//mfem::Operator * OptProblem::Dmucl(const mfem::BlockVector &/*x*/)
-//{
-//   return nullptr;
-//}
-//
-//mfem::Operator * OptProblem::Dmmcl(const mfem::BlockVector &/*x*/)
-//{
-//   return nullptr;
-//}
+mfem::Operator * OptProblem::Duucl(const mfem::BlockVector &/*x*/, const mfem::Vector &/*l*/)
+{
+   return nullptr;
+}
+
+mfem::Operator * OptProblem::Dumcl(const mfem::BlockVector &/*x*/, const mfem::Vector & /*l*/)
+{
+   return nullptr;
+}
+
+mfem::Operator * OptProblem::Dmucl(const mfem::BlockVector &/*x*/, const mfem::Vector & /*l*/)
+{
+   return nullptr;
+}
+
+mfem::Operator * OptProblem::Dmmcl(const mfem::BlockVector &/*x*/, const mfem::Vector & /*l*/)
+{
+   return nullptr;
+}
 
 
 
@@ -489,6 +488,26 @@ mfem::Operator * OptEqProblem::Dmc(const mfem::BlockVector &/*x*/)
 { 
    return dcdm;
 } 
+
+mfem::Operator * OptEqProblem::Duucl(const mfem::BlockVector &/*x*/, const mfem::Vector &/*l*/)
+{
+   return nullptr;
+}
+
+mfem::Operator * OptEqProblem::Dumcl(const mfem::BlockVector &/*x*/, const mfem::Vector & /*l*/)
+{
+   return nullptr;
+}
+
+mfem::Operator * OptEqProblem::Dmucl(const mfem::BlockVector &/*x*/, const mfem::Vector & /*l*/)
+{
+   return nullptr;
+}
+
+mfem::Operator * OptEqProblem::Dmmcl(const mfem::BlockVector &/*x*/, const mfem::Vector & /*l*/)
+{
+   return nullptr;
+}
 
 OptEqProblem::~OptEqProblem() 
 {

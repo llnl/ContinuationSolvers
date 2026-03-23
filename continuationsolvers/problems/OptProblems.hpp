@@ -32,10 +32,10 @@ public:
     virtual mfem::Operator * Dmmf(const mfem::BlockVector &) = 0;
     virtual mfem::Operator * Duc(const mfem::BlockVector &) = 0;
     virtual mfem::Operator * Dmc(const mfem::BlockVector &) = 0;
-    //virtual mfem::Operator * Duucl(const mfem::BlockVector &) = 0;
-    //virtual mfem::Operator * Dumcl(const mfem::BlockVector &) = 0;
-    //virtual mfem::Operator * Dmucl(const mfem::BlockVector &) = 0;
-    //virtual mfem::Operator * Dmmcl(const mfem::BlockVector &) = 0;
+    virtual mfem::Operator * Duucl(const mfem::BlockVector &, const mfem::Vector &) = 0;
+    virtual mfem::Operator * Dumcl(const mfem::BlockVector &, const mfem::Vector &) = 0;
+    virtual mfem::Operator * Dmucl(const mfem::BlockVector &, const mfem::Vector &) = 0;
+    virtual mfem::Operator * Dmmcl(const mfem::BlockVector &, const mfem::Vector &) = 0;
     virtual void c(const mfem::BlockVector &, mfem::Vector &, int &) = 0;
     void c(const mfem::BlockVector &, mfem::Vector &) ;
     int GetDimU() const { return dimU; };
@@ -75,10 +75,10 @@ public:
     void c(const mfem::BlockVector &, mfem::Vector &, int &) override;
     mfem::Operator * Duc(const mfem::BlockVector &) override;
     mfem::Operator * Dmc(const mfem::BlockVector &) override;
-    //mfem::Operator * Duucl(const mfem::BlockVector &) override;
-    //mfem::Operator * Dumcl(const mfem::BlockVector &) override;
-    //mfem::Operator * Dmucl(const mfem::BlockVector &) override;
-    //mfem::Operator * Dmmcl(const mfem::BlockVector &) override;
+    mfem::Operator * Duucl(const mfem::BlockVector &, const mfem::Vector &) override;
+    mfem::Operator * Dumcl(const mfem::BlockVector &, const mfem::Vector &) override;
+    mfem::Operator * Dmucl(const mfem::BlockVector &, const mfem::Vector &) override;
+    mfem::Operator * Dmmcl(const mfem::BlockVector &, const mfem::Vector &) override;
     
     
     // OptProblem specific methods:
@@ -128,16 +128,20 @@ public:
     
     // GeneralOptProblem methods are defined in terms of
     // OptProblem specific methods: E, DdE, DddE, g, Ddg
-    double CalcObjective(const mfem::BlockVector &, int &) ; 
-    void Duf(const mfem::BlockVector &, mfem::Vector &) ;
-    void Dmf(const mfem::BlockVector &, mfem::Vector &) ;
-    mfem::Operator * Duuf(const mfem::BlockVector &);
-    mfem::Operator * Dumf(const mfem::BlockVector &);
-    mfem::Operator * Dmuf(const mfem::BlockVector &);
-    mfem::Operator * Dmmf(const mfem::BlockVector &);
-    void c(const mfem::BlockVector &, mfem::Vector &, int &) ;
-    mfem::Operator * Duc(const mfem::BlockVector &);
-    mfem::Operator * Dmc(const mfem::BlockVector &);
+    double CalcObjective(const mfem::BlockVector &, int &) override; 
+    void Duf(const mfem::BlockVector &, mfem::Vector &) override;
+    void Dmf(const mfem::BlockVector &, mfem::Vector &) override;
+    mfem::Operator * Duuf(const mfem::BlockVector &) override;
+    mfem::Operator * Dumf(const mfem::BlockVector &) override;
+    mfem::Operator * Dmuf(const mfem::BlockVector &) override;
+    mfem::Operator * Dmmf(const mfem::BlockVector &) override;
+    void c(const mfem::BlockVector &, mfem::Vector &, int &) override;
+    mfem::Operator * Duc(const mfem::BlockVector &) override;
+    mfem::Operator * Dmc(const mfem::BlockVector &) override;
+    mfem::Operator * Duucl(const mfem::BlockVector &, const mfem::Vector &) override;
+    mfem::Operator * Dumcl(const mfem::BlockVector &, const mfem::Vector &) override;
+    mfem::Operator * Dmucl(const mfem::BlockVector &, const mfem::Vector &) override;
+    mfem::Operator * Dmmcl(const mfem::BlockVector &, const mfem::Vector &) override;
     
     // OptProblem specific methods:
     
