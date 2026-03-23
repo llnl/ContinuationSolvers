@@ -32,6 +32,10 @@ public:
     virtual mfem::Operator * Dmmf(const mfem::BlockVector &) = 0;
     virtual mfem::Operator * Duc(const mfem::BlockVector &) = 0;
     virtual mfem::Operator * Dmc(const mfem::BlockVector &) = 0;
+    //virtual mfem::Operator * Duucl(const mfem::BlockVector &) = 0;
+    //virtual mfem::Operator * Dumcl(const mfem::BlockVector &) = 0;
+    //virtual mfem::Operator * Dmucl(const mfem::BlockVector &) = 0;
+    //virtual mfem::Operator * Dmmcl(const mfem::BlockVector &) = 0;
     virtual void c(const mfem::BlockVector &, mfem::Vector &, int &) = 0;
     void c(const mfem::BlockVector &, mfem::Vector &) ;
     int GetDimU() const { return dimU; };
@@ -61,16 +65,21 @@ public:
     
     // GeneralOptProblem methods are defined in terms of
     // OptProblem specific methods: E, DdE, DddE, g, Ddg
-    double CalcObjective(const mfem::BlockVector &, int &) ; 
-    void Duf(const mfem::BlockVector &, mfem::Vector &) ;
-    void Dmf(const mfem::BlockVector &, mfem::Vector &) ;
-    mfem::Operator * Duuf(const mfem::BlockVector &);
-    mfem::Operator * Dumf(const mfem::BlockVector &);
-    mfem::Operator * Dmuf(const mfem::BlockVector &);
-    mfem::Operator * Dmmf(const mfem::BlockVector &);
-    void c(const mfem::BlockVector &, mfem::Vector &, int &) ;
-    mfem::Operator * Duc(const mfem::BlockVector &);
-    mfem::Operator * Dmc(const mfem::BlockVector &);
+    double CalcObjective(const mfem::BlockVector &, int &) override; 
+    void Duf(const mfem::BlockVector &, mfem::Vector &) override;
+    void Dmf(const mfem::BlockVector &, mfem::Vector &) override;
+    mfem::Operator * Duuf(const mfem::BlockVector &) override;
+    mfem::Operator * Dumf(const mfem::BlockVector &) override;
+    mfem::Operator * Dmuf(const mfem::BlockVector &) override;
+    mfem::Operator * Dmmf(const mfem::BlockVector &) override;
+    void c(const mfem::BlockVector &, mfem::Vector &, int &) override;
+    mfem::Operator * Duc(const mfem::BlockVector &) override;
+    mfem::Operator * Dmc(const mfem::BlockVector &) override;
+    //mfem::Operator * Duucl(const mfem::BlockVector &) override;
+    //mfem::Operator * Dumcl(const mfem::BlockVector &) override;
+    //mfem::Operator * Dmucl(const mfem::BlockVector &) override;
+    //mfem::Operator * Dmmcl(const mfem::BlockVector &) override;
+    
     
     // OptProblem specific methods:
     
@@ -101,6 +110,8 @@ public:
     virtual mfem::Operator * Ddg(const mfem::Vector &) = 0;
     virtual ~OptProblem();
 };
+
+
 
 
 // abstract equality-constrained optimization problem
@@ -158,6 +169,78 @@ public:
     virtual ~OptEqProblem();
 };
 
+
+
+class ParamOptProblem : public OptProblem
+{
+protected:
+    mfem::Vector theta_default; // default value of parameter
+public:
+    ParamOptProblem();
+    
+    // ParamOptProblem specific methods:
+    
+    // energy objective function e(d, \theta)
+    // input: d an mfem::Vector
+    // input: theta an mfem::Vector (design parameter for upper level problem)
+    // output: e(d, theta) a double
+    virtual double E(const mfem::Vector &d, const mfem::Vector & theta, int &) = 0;
+
+    // energy objective E(d, theta=theta_default)
+    double E(const mfem::Vector &d, int &);
+    
+
+    // gradient of energy objective De(d,\theta) / Dd 
+    // input: d an mfem::Vector,
+    // input: \theta an mfem::Vector
+    //        gradE an mfem::Vector, which will be the gradient of E at \theta and at and w.r.t. d
+    // output: none    
+    virtual void DdE(const mfem::Vector &d, const mfem::Vector &theta, mfem::Vector &gradE) = 0;
+    
+
+    // gradient of energy objective De(d,\theta) / Dd |_{theta = theta_default}
+    // input: d an mfem::Vector,
+    //        gradE an mfem::Vector, which will be the gradient of E at d
+    // output: none    
+    void DdE(const mfem::Vector &d, mfem::Vector &gradE);
+    
+
+    // Hessian of energy objective D^2 e / Dd^2
+    // input:  d, an mfem::Vector,
+    // input: \theta, an mfem::Vector,
+    // output: The Hessian of the energy objective at d, a pointer to an mfem::Operator
+    virtual mfem::Operator * DddE(const mfem::Vector &d, const mfem::Vector & theta) = 0;
+  
+    // Hessian of energy objective D^2 e / Dd^2
+    // input:  d, an mfem::Vector
+    // output: The Hessian of the energy objective at d, a pointer to a Operator
+    mfem::Operator * DddE(const mfem::Vector &d);
+
+    // Constraint function g(d, theta) >= 0, e.g., gap function
+    // input: d, an mfem::Vector,
+    // input: theta, an mfem::Vector
+    //       gd, an mfem::Vector, which upon successfully calling the g method will be
+    //                            the evaluation of the function g at d
+    // output: none
+    virtual void g(const mfem::Vector &d, const mfem::Vector &theta, mfem::Vector &gd, int &) = 0;
+    
+    // Constraint function g(d, theta_default)
+    void g(const mfem::Vector &d, mfem::Vector &gd, int &);
+    // Jacobian of constraint function Dg(d,\theta) / Dd, e.g., gap function Jacobian
+    // input:  d, an mfem::Vector,
+    // input: \theta, an mfem::Vector
+    // output: The Jacobain of the constraint function g at d, a pointer to a Operator
+    virtual mfem::Operator * Ddg(const mfem::Vector &, const mfem::Vector &theta) = 0;
+
+    mfem::Operator * Ddg(const mfem::Vector &);
+    virtual ~ParamOptProblem();
+
+    //void Init(HYPRE_BigInt *, HYPRE_BigInt *);
+};
+
+
+
+
 class ObstacleProblem : public OptProblem
 {
 protected:
@@ -202,6 +285,36 @@ public:
   OptProblem * GetProblem() {  return problem; }
   virtual ~ReducedOptProblem();
 };
+
+
+
+
+
+
+//enum MPECRegularizationType
+//{
+//   CHKS,
+//};
+
+
+
+
+//class RegularizedMPECProblem : public OptEqProblem
+//{
+//protected:
+//  double gamma = 1.e-2; // complementarity regularization
+//  OptProblem *problem;  // constraints of regularized MPEC given in terms of optimality conditions of an OptProblem
+//public:
+//  RegularizedMPECProblem(OptProblem *problem, MPECRegularizationType = MPECRegularizationType::CHKS);
+//  virtual double E(const mfem::Vector &, int &) = 0;
+//  virtual void DdE(const mfem::Vector &, mfem::Vector &) = 0;
+//  virtual mfem::Operator * DddE(const mfem::Vector &) = 0;
+//  void g(const mfem::Vector &, mfem::Vector &, int &);
+//  mfem::Operator * Ddg(const mfem::Vector &);
+//  virtual ~RegularizedMPECProblem();
+//};
+
+
 
 
 

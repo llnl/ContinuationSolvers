@@ -124,6 +124,31 @@ mfem::Operator * OptProblem::Dmc(const mfem::BlockVector &/*x*/)
    return Ih;
 } 
 
+//mfem::Operator * OptProblem::Duucl(const mfem::BlockVector &/*x*/)
+//{
+//   return nullptr;
+//}
+//
+//
+//mfem::Operator * OptProblem::Dumcl(const mfem::BlockVector &/*x*/)
+//{
+//   return nullptr;
+//}
+//
+//mfem::Operator * OptProblem::Dmucl(const mfem::BlockVector &/*x*/)
+//{
+//   return nullptr;
+//}
+//
+//mfem::Operator * OptProblem::Dmmcl(const mfem::BlockVector &/*x*/)
+//{
+//   return nullptr;
+//}
+
+
+
+
+
 OptProblem::~OptProblem() 
 {
   delete[] dofOffsetsU;
@@ -472,3 +497,38 @@ OptEqProblem::~OptEqProblem()
   delete[] dofOffsetsC;
   delete dcdm;
 }
+
+
+ParamOptProblem::ParamOptProblem() : OptProblem()
+{
+  
+}
+
+double ParamOptProblem::E(const mfem::Vector &d, int & eval_err)
+{
+   //TODO: verify that theta_default has been set
+   return E(d, theta_default, eval_err);
+}
+
+void ParamOptProblem::DdE(const mfem::Vector &d, mfem::Vector &gradE)
+{
+   DdE(d, theta_default, gradE);
+}
+
+mfem::Operator * ParamOptProblem::DddE(const mfem::Vector &d)
+{
+   return DddE(d, theta_default);
+}
+
+void ParamOptProblem::g(const mfem::Vector &d, mfem::Vector & gd, int & eval_err)
+{
+   g(d, theta_default, gd, eval_err);
+}
+
+mfem::Operator * ParamOptProblem::Ddg(const mfem::Vector &d)
+{
+   return Ddg(d, theta_default);
+}
+
+
+
