@@ -95,7 +95,7 @@ public:
   
     // Hessian of energy objective D^2 e / Dd^2
     // input:  d, an mfem::Vector
-    // output: The Hessian of the energy objective at d, a pointer to a Operator
+    // output: The Hessian of the energy objective at d, a pointer to an mfem::Operator
     virtual mfem::Operator * DddE(const mfem::Vector &d) = 0;
 
     // Constraint function g(d) >= 0, e.g., gap function
@@ -106,8 +106,14 @@ public:
     virtual void g(const mfem::Vector &d, mfem::Vector &gd, int &) = 0;
     // Jacobian of constraint function Dg / Dd, e.g., gap function Jacobian
     // input:  d, an mfem::Vector,
-    // output: The Jacobain of the constraint function g at d, a pointer to a Operator
+    // output: The Jacobain of the constraint function g at d, a pointer to an mfem::Operator
     virtual mfem::Operator * Ddg(const mfem::Vector &) = 0;
+
+    // Hessian of constraint times Lagrange multiplier D^2 (g^T l) Dd^2
+    // input: d, an mfem::Vector (primal)
+    // input: l, an mfem::Vector (Lagrange multiplier)
+    // output: The Hessian of the constraint function times Lagrange multiplier at d, a pointer to an mfem::Operator
+    virtual mfem::Operator *Dddgl(const mfem::Vector &, const mfem::Vector &);
     virtual ~OptProblem();
 };
 
@@ -191,7 +197,7 @@ public:
     virtual double E(const mfem::Vector &d, const mfem::Vector & theta, int &) = 0;
 
     // energy objective E(d, theta=theta_default)
-    double E(const mfem::Vector &d, int &);
+    double E(const mfem::Vector &d, int &) override;
     
 
     // gradient of energy objective De(d,\theta) / Dd 
@@ -206,7 +212,7 @@ public:
     // input: d an mfem::Vector,
     //        gradE an mfem::Vector, which will be the gradient of E at d
     // output: none    
-    void DdE(const mfem::Vector &d, mfem::Vector &gradE);
+    void DdE(const mfem::Vector &d, mfem::Vector &gradE) override;
     
 
     // Hessian of energy objective D^2 e / Dd^2
@@ -218,7 +224,7 @@ public:
     // Hessian of energy objective D^2 e / Dd^2
     // input:  d, an mfem::Vector
     // output: The Hessian of the energy objective at d, a pointer to a Operator
-    mfem::Operator * DddE(const mfem::Vector &d);
+    mfem::Operator * DddE(const mfem::Vector &d) override;
 
     // Constraint function g(d, theta) >= 0, e.g., gap function
     // input: d, an mfem::Vector,
@@ -229,14 +235,18 @@ public:
     virtual void g(const mfem::Vector &d, const mfem::Vector &theta, mfem::Vector &gd, int &) = 0;
     
     // Constraint function g(d, theta_default)
-    void g(const mfem::Vector &d, mfem::Vector &gd, int &);
+    void g(const mfem::Vector &d, mfem::Vector &gd, int &eval_err) override;
     // Jacobian of constraint function Dg(d,\theta) / Dd, e.g., gap function Jacobian
     // input:  d, an mfem::Vector,
     // input: \theta, an mfem::Vector
     // output: The Jacobain of the constraint function g at d, a pointer to a Operator
     virtual mfem::Operator * Ddg(const mfem::Vector &, const mfem::Vector &theta) = 0;
 
-    mfem::Operator * Ddg(const mfem::Vector &);
+    mfem::Operator * Ddg(const mfem::Vector &) override;
+    
+    virtual mfem::Operator * Dddgl(const mfem::Vector &d, const mfem::Vector &l, const mfem::Vector &theta) = 0;
+    
+    mfem::Operator * Dddgl(const mfem::Vector & d, const mfem::Vector &l) override;
     virtual ~ParamOptProblem();
 
     //void Init(HYPRE_BigInt *, HYPRE_BigInt *);

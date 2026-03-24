@@ -124,13 +124,14 @@ mfem::Operator * OptProblem::Dmc(const mfem::BlockVector &/*x*/)
    return Ih;
 } 
 
-mfem::Operator * OptProblem::Duucl(const mfem::BlockVector &/*x*/, const mfem::Vector &/*l*/)
+mfem::Operator * OptProblem::Duucl(const mfem::BlockVector &x, const mfem::Vector &l)
 {
-   return nullptr;
+   return Dddgl(x.GetBlock(0), l);
 }
 
 mfem::Operator * OptProblem::Dumcl(const mfem::BlockVector &/*x*/, const mfem::Vector & /*l*/)
 {
+   /* TODO: return empty HypreParMatrices of the appropriate sizes? */
    return nullptr;
 }
 
@@ -144,7 +145,11 @@ mfem::Operator * OptProblem::Dmmcl(const mfem::BlockVector &/*x*/, const mfem::V
    return nullptr;
 }
 
-
+mfem::Operator * OptProblem::Dddgl(const mfem::Vector &/*d*/, const mfem::Vector &/*l*/)
+{
+   MFEM_VERIFY(false, "child class must provide implementation of Dddgl method"); 
+   return nullptr;
+}
 
 
 
@@ -549,5 +554,7 @@ mfem::Operator * ParamOptProblem::Ddg(const mfem::Vector &d)
    return Ddg(d, theta_default);
 }
 
-
-
+mfem::Operator * ParamOptProblem::Dddgl(const mfem::Vector &d, const mfem::Vector &l)
+{
+   return Dddgl(d, l, theta_default);
+}
