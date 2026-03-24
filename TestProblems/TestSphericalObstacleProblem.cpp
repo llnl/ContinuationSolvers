@@ -16,7 +16,8 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "../continuationsolvers/problems/Problems.hpp"
+//#include "../continuationsolvers/problems/Problems.hpp"
+#include "../continuationsolvers/problems/ObstacleProblems.hpp"
 #include "../continuationsolvers/solvers/IPSolver.hpp"
 
 using namespace std;

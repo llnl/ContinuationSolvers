@@ -1,8 +1,8 @@
 #include "mfem.hpp"
 #include "OptProblems.hpp"
 
-#ifndef PROBLEM_DEFS
-#define PROBLEM_DEFS
+#ifndef NLMCPROBLEM_DEFS
+#define NLMCPROBLEM_DEFS
 
 /* Abstract GeneralNLMCProblem class
  * to describe the nonlinear mixed complementarity problem
@@ -189,4 +189,4 @@ public:
 
 
 
-#endif
+#endif // NLMCPROBLEM_DEFS
