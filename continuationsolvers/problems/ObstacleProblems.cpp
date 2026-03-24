@@ -133,3 +133,95 @@ ObstacleProblem::~ObstacleProblem()
    delete fform;
    delete J;
 }
+
+
+// Obstacle Problem, no essential boundary conditions enforced
+// Hessian of energy term is K + M (stiffness + mass)
+ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_, 
+                                       double (*fSource)(const mfem::Vector &),
+                                       double (*obstacleSource)(const mfem::Vector &)) : 
+                                       ParamOptProblem()
+{
+   Vh = fesU_;
+   Init(Vh->GetTrueDofOffsets(), Vh->GetTrueDofOffsets());
+   
+   Kform = new mfem::ParBilinearForm(Vh);
+   Kform->AddDomainIntegrator(new mfem::MassIntegrator);
+   Kform->AddDomainIntegrator(new mfem::DiffusionIntegrator);
+   Kform->Assemble();
+   Kform->Finalize();
+   Kform->FormSystemMatrix(ess_tdof_list, K);
+   mfem::FunctionCoefficient fcoeff(fSource);
+   fform = new mfem::ParLinearForm(Vh);
+   fform->AddDomainIntegrator(new mfem::DomainLFIntegrator(fcoeff));
+   fform->Assemble();
+   mfem::Vector F(dimU);
+   fform->ParallelAssemble(F);
+   f.SetSize(dimU);
+   f.Set(1.0, F);
+   
+
+   // provided obstacle will be default param value
+   theta_default.SetSize(dimU);
+   theta_default = 0.0;
+   mfem::FunctionCoefficient theta_fc(obstacleSource);
+   mfem::ParGridFunction theta_gf(Vh);
+   theta_gf.ProjectCoefficient(theta_fc);
+   theta_default.Set(1.0, (*theta_gf.GetTrueDofs()));
+   
+   mfem::Vector iDiag(dimU); iDiag = 1.0;
+   J = GenerateHypreParMatrixFromDiagonal(dofOffsetsU, iDiag);
+}
+
+double ParamObstacleProblem::E(const mfem::Vector &d, const mfem::Vector & theta, int & eval_err)
+{
+   mfem::Vector Kd(K.Height()); Kd = 0.0;
+   eval_err = 0;
+   MFEM_VERIFY(d.Size() == K.Width(), "ParamObstacleProblem::E - Inconsistent dimensions");
+   K.Mult(d, Kd);
+   return 0.5 * mfem::InnerProduct(MPI_COMM_WORLD, d, Kd) - mfem::InnerProduct(MPI_COMM_WORLD, f, d);
+}
+
+void ParamObstacleProblem::DdE(const mfem::Vector &d, const mfem::Vector &theta, mfem::Vector &gradE)
+{
+   gradE.SetSize(K.Height());
+   MFEM_VERIFY(d.Size() == K.Width(), "ParamObstacleProblem::DdE - Inconsistent dimensions");
+   K.Mult(d, gradE);
+   MFEM_VERIFY(f.Size() == K.Height(), "ParamObstacleProblem::DdE - Inconsistent dimensions");
+   gradE.Add(-1.0, f);
+}
+
+mfem::Operator * ParamObstacleProblem::DddE(const mfem::Vector &d, const mfem::Vector & theta)
+{
+   return &K; 
+}
+
+// g(d) = d >= \theta
+void ParamObstacleProblem::g(const mfem::Vector &d, const mfem::Vector & theta, mfem::Vector &gd, int & eval_err)
+{
+   eval_err = 0;
+   MFEM_VERIFY(d.Size() == J->Width(), "ParamObstacleProblem::g - Inconsistent dimensions");
+   MFEM_VERIFY(gd.Size() == J->Height(), "ParamObstacleProblem::g - Inconsistent dimensions");
+   MFEM_VERIFY(theta.Size() == J->Height(), "ParamObstacleProblem::g - Inconsistent dimensions");
+   J->Mult(d, gd);
+   gd.Add(-1.0, theta);
+}
+
+mfem::Operator * ParamObstacleProblem::Ddg(const mfem::Vector &d, const mfem::Vector & theta)
+{
+   return J;
+}
+
+mfem::Operator * ParamObstacleProblem::Dddgl(const mfem::Vector &d, const mfem::Vector &l, const mfem::Vector & theta)
+{
+   //TODO: return a null matrix
+   return nullptr;
+}
+
+
+ParamObstacleProblem::~ParamObstacleProblem()
+{
+   delete Kform;
+   delete fform;
+   delete J;
+}

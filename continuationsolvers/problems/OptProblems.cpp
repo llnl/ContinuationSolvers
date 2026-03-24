@@ -427,3 +427,7 @@ mfem::Operator * ParamOptProblem::Dddgl(const mfem::Vector &d, const mfem::Vecto
 {
    return Dddgl(d, l, theta_default);
 }
+
+ParamOptProblem::~ParamOptProblem() 
+{
+}

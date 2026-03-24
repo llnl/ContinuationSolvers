@@ -244,6 +244,7 @@ public:
 
     mfem::Operator * Ddg(const mfem::Vector &) override;
     
+    // TODO: should this be pure virtual?
     virtual mfem::Operator * Dddgl(const mfem::Vector &d, const mfem::Vector &l, const mfem::Vector &theta) = 0;
     
     mfem::Operator * Dddgl(const mfem::Vector & d, const mfem::Vector &l) override;
