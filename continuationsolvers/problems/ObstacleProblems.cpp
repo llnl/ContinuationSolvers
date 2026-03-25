@@ -2,11 +2,12 @@
 #include "ObstacleProblems.hpp"
 
 
+
 // Obstacle Problem, no essential boundary conditions enforced
 // Hessian of energy term is K + M (stiffness + mass)
 ObstacleProblem::ObstacleProblem(mfem::ParFiniteElementSpace *fesU_, 
                                        mfem::ParFiniteElementSpace *fesM_, 
-                                       double (*fSource)(const mfem::Vector &)) : 
+                                       mfem_fun_ptr_type fSource) : 
                                        OptProblem()
 {
    
@@ -38,8 +39,8 @@ ObstacleProblem::ObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
 // Hessian of energy term is K (stiffness)
 ObstacleProblem::ObstacleProblem(mfem::ParFiniteElementSpace *fesU_, 
                                        mfem::ParFiniteElementSpace *fesM_, 
-				       double (*fSource)(const mfem::Vector &),
-				       double (*obstacleSource)(const mfem::Vector &),
+				       mfem_fun_ptr_type fSource,
+				       mfem_fun_ptr_type obstacleSource,
 				       mfem::Array<int> tdof_list, mfem::Vector &xDC) : OptProblem()
 {
    Init(fesU_->GetTrueDofOffsets(), fesM_->GetTrueDofOffsets());
@@ -138,8 +139,8 @@ ObstacleProblem::~ObstacleProblem()
 // Obstacle Problem, no essential boundary conditions enforced
 // Hessian of energy term is K + M (stiffness + mass)
 ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_, 
-                                       double (*fSource)(const mfem::Vector &),
-                                       double (*obstacleSource)(const mfem::Vector &)) : 
+                                       mfem_fun_ptr_type fSource,
+                                       mfem_fun_ptr_type obstacleSource) : 
                                        ParamOptProblem()
 {
    Vh = fesU_;

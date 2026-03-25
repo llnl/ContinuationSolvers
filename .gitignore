@@ -1,19 +1,20 @@
+#Ignore all files and directories
+*
+
+#Re-include all directories
+!*/
+
+#Re-include all files with extensions
+!*.*
+
+#Remove all directories in TestProblems directory
+TestProblems/*/*
+
+#Re-include TestProblems/meshes
+!TestProblems/meshes/*
+
+# remove files
 *.a
 *.o
 *.core
-CMakeFiles
 *.cmake
-Makefile
-TestProblems/ParaView
-TestProblems/TestProblem1
-TestProblems/TestProblem1a
-TestProblems/TestProblem1b
-TestProblems/TestProblem1c
-TestProblems/TestProblem2
-TestProblems/TestProblem3
-TestProblems/TestProblem4
-TestProblems/TestProblem4a
-TestProblems/TestProblem5
-TestProblems/LibTestProblem
-TestProblems/TestObstacleProblem
-TestProblems/TestSphericalObstacleProblem

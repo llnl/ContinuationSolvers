@@ -3,6 +3,7 @@
 #ifndef OBSTACLEPROBLEM_DEFS
 #define OBSTACLEPROBLEM_DEFS
 
+typedef double (*mfem_fun_ptr_type)(const mfem::Vector &);
 
 class ObstacleProblem : public OptProblem
 {
@@ -18,8 +19,8 @@ protected:
    mfem::Vector f;
    mfem::Vector psi;
 public :
-   ObstacleProblem(mfem::ParFiniteElementSpace*, mfem::ParFiniteElementSpace*, double (*fSource)(const mfem::Vector &));
-   ObstacleProblem(mfem::ParFiniteElementSpace*, mfem::ParFiniteElementSpace*, double (*fSource)(const mfem::Vector &), double (*obstacleSource)(const mfem::Vector &), mfem::Array<int> tdof_list, mfem::Vector &);
+   ObstacleProblem(mfem::ParFiniteElementSpace*, mfem::ParFiniteElementSpace*, mfem_fun_ptr_type fSource);
+   ObstacleProblem(mfem::ParFiniteElementSpace*, mfem::ParFiniteElementSpace*, mfem_fun_ptr_type fSource, mfem_fun_ptr_type obstacleSource, mfem::Array<int> tdof_list, mfem::Vector &);
    double E(const mfem::Vector &, int &);
    void DdE(const mfem::Vector &, mfem::Vector &);
    mfem::Operator* DddE(const mfem::Vector &);
@@ -43,8 +44,7 @@ protected:
    mfem::ParFiniteElementSpace* Vh = nullptr;
    mfem::Vector f;
 public :
-   //ParamObstacleProblem(mfem::ParFiniteElementSpace*, double (*fSource)(const mfem::Vector &));
-   ParamObstacleProblem(mfem::ParFiniteElementSpace*, double (*fSource)(const mfem::Vector &), double (*obstacleSource)(const mfem::Vector &));
+   ParamObstacleProblem(mfem::ParFiniteElementSpace*, mfem_fun_ptr_type fSource, mfem_fun_ptr_type obstacleSource);
    double E(const mfem::Vector &d, const mfem::Vector &theta, int &eval_err);
    void DdE(const mfem::Vector &d, const mfem::Vector &theta, mfem::Vector &gradE);
    mfem::Operator* DddE(const mfem::Vector &d, const mfem::Vector &theta);
