@@ -239,18 +239,22 @@ public:
     // Jacobian of constraint function Dg(d,\theta) / Dd, e.g., gap function Jacobian
     // input:  d, an mfem::Vector,
     // input: \theta, an mfem::Vector
-    // output: The Jacobain of the constraint function g at d, a pointer to a Operator
+    // output: The Jacobain of the constraint function g at (d, \theta), with respect to d, a pointer to an mfem::Operator
     virtual mfem::Operator * Ddg(const mfem::Vector &, const mfem::Vector &theta) = 0;
 
     mfem::Operator * Ddg(const mfem::Vector &) override;
-    
+   
+    // Jacobian of constraint with respect to parameter, D{g(d, \theta)}/D\theta
+    // input: d, an mfem::Vector
+    // input: \theta, an mfem::Vector
+    // output: The Jacobian of the constraint function g at (d, \theta), with respect to \theta, a pointer to an mfem::Operator
+    virtual mfem::Operator * Dthg(const mfem::Vector &, const mfem::Vector & theta) = 0;
+ 
     // TODO: should this be pure virtual?
     virtual mfem::Operator * Dddgl(const mfem::Vector &d, const mfem::Vector &l, const mfem::Vector &theta) = 0;
     
     mfem::Operator * Dddgl(const mfem::Vector & d, const mfem::Vector &l) override;
     virtual ~ParamOptProblem();
-
-    //void Init(HYPRE_BigInt *, HYPRE_BigInt *);
 };
 
 

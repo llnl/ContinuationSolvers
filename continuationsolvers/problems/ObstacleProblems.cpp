@@ -171,12 +171,17 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
    theta_default.Set(1.0, (*theta_gf.GetTrueDofs()));
    
    mfem::Vector iDiag(dimU); iDiag = 1.0;
-   J = GenerateHypreParMatrixFromDiagonal(dofOffsetsU, iDiag);
+   Jd = GenerateHypreParMatrixFromDiagonal(dofOffsetsU, iDiag);
+   iDiag = -1.0;
+   Jth = GenerateHypreParMatrixFromDiagonal(dofOffsetsU, iDiag);
+
 
    {
+      // sparse matrices with no entries, hence a null matrix
       int nentries = 0;
       auto temp = new mfem::SparseMatrix(dimU, dimUglb, nentries);
-      Hgl = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsU, dofOffsetsU, temp);
+      Hddgl = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsU, dofOffsetsU, temp);
+      Hthdgl = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsU, dofOffsetsU, temp);
       delete temp;
    }
 }
@@ -208,22 +213,31 @@ mfem::Operator * ParamObstacleProblem::DddE(const mfem::Vector &d, const mfem::V
 void ParamObstacleProblem::g(const mfem::Vector &d, const mfem::Vector & theta, mfem::Vector &gd, int & eval_err)
 {
    eval_err = 0;
-   MFEM_VERIFY(d.Size() == J->Width(), "ParamObstacleProblem::g - Inconsistent dimensions");
-   MFEM_VERIFY(gd.Size() == J->Height(), "ParamObstacleProblem::g - Inconsistent dimensions");
-   MFEM_VERIFY(theta.Size() == J->Height(), "ParamObstacleProblem::g - Inconsistent dimensions");
-   J->Mult(d, gd);
+   MFEM_VERIFY(d.Size() == Jd->Width(), "ParamObstacleProblem::g - Inconsistent dimensions");
+   MFEM_VERIFY(gd.Size() == Jd->Height(), "ParamObstacleProblem::g - Inconsistent dimensions");
+   MFEM_VERIFY(theta.Size() == Jd->Height(), "ParamObstacleProblem::g - Inconsistent dimensions");
+   Jd->Mult(d, gd);
    gd.Add(-1.0, theta);
 }
 
 mfem::Operator * ParamObstacleProblem::Ddg(const mfem::Vector &d, const mfem::Vector & theta)
 {
-   return J;
+   return Jd;
+}
+
+mfem::Operator * ParamObstacleProblem::Dthg(const mfem::Vector &d, const mfem::Vector & theta)
+{
+   return Jth;
 }
 
 mfem::Operator * ParamObstacleProblem::Dddgl(const mfem::Vector &d, const mfem::Vector &l, const mfem::Vector & theta)
 {
-   //TODO: return a null matrix
-   return nullptr;
+   return Hddgl;
+}
+
+mfem::Operator * ParamObstacleProblem::Dthdgl(const mfem::Vector &d, const mfem::Vector &l, const mfem::Vector & theta)
+{
+   return Hthdgl;
 }
 
 
@@ -231,6 +245,8 @@ ParamObstacleProblem::~ParamObstacleProblem()
 {
    delete Kform;
    delete fform;
-   delete J;
-   delete Hgl;
+   delete Jd;
+   delete Jth;
+   delete Hddgl;
+   delete Hthdgl;
 }

@@ -39,8 +39,10 @@ protected:
    mfem::ParLinearForm   *fform = nullptr;
    mfem::Array<int> ess_tdof_list; // needed for calls to FormSystemMatrix
    mfem::HypreParMatrix  K;
-   mfem::HypreParMatrix* J = nullptr;
-   mfem::HypreParMatrix* Hgl = nullptr; // Hessian of gap^T lagrange multiplier
+   mfem::HypreParMatrix* Jd = nullptr;
+   mfem::HypreParMatrix* Jth = nullptr;
+   mfem::HypreParMatrix* Hddgl = nullptr;  // Hessian of (gap^T Lagrange multiplier) D^2 / Dd^2
+   mfem::HypreParMatrix* Hthdgl = nullptr; // Hessian of (gap^T Lagrange multiplier) D^2 / (Dth Dd)
    mfem::ParFiniteElementSpace* Vh = nullptr;
    mfem::Vector f;
 public :
@@ -48,9 +50,12 @@ public :
    double E(const mfem::Vector &d, const mfem::Vector &theta, int &eval_err);
    void DdE(const mfem::Vector &d, const mfem::Vector &theta, mfem::Vector &gradE);
    mfem::Operator* DddE(const mfem::Vector &d, const mfem::Vector &theta);
+   mfem::Operator* DthdE(const mfem::Vector &d, const mfem::Vector & theta);
    void g(const mfem::Vector &d, const mfem::Vector &theta, mfem::Vector &gd, int &eval_err);
    mfem::Operator* Ddg(const mfem::Vector &d, const mfem::Vector &theta);
+   mfem::Operator* Dthg(const mfem::Vector &d, const mfem::Vector &theta);
    mfem::Operator* Dddgl(const mfem::Vector & d, const mfem::Vector &l, const mfem::Vector &theta);
+   mfem::Operator* Dthdgl(const mfem::Vector & d, const mfem::Vector &l, const mfem::Vector &theta);
    virtual ~ParamObstacleProblem();
 };
 
