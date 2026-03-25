@@ -39,10 +39,11 @@ protected:
    mfem::Array<int> ess_tdof_list; // needed for calls to FormSystemMatrix
    mfem::HypreParMatrix  K;
    mfem::HypreParMatrix* J = nullptr;
+   mfem::HypreParMatrix* Hgl = nullptr; // Hessian of gap^T lagrange multiplier
    mfem::ParFiniteElementSpace* Vh = nullptr;
    mfem::Vector f;
 public :
-   //ObstacleProblem(mfem::ParFiniteElementSpace*, double (*fSource)(const mfem::Vector &));
+   //ParamObstacleProblem(mfem::ParFiniteElementSpace*, double (*fSource)(const mfem::Vector &));
    ParamObstacleProblem(mfem::ParFiniteElementSpace*, double (*fSource)(const mfem::Vector &), double (*obstacleSource)(const mfem::Vector &));
    double E(const mfem::Vector &d, const mfem::Vector &theta, int &eval_err);
    void DdE(const mfem::Vector &d, const mfem::Vector &theta, mfem::Vector &gradE);

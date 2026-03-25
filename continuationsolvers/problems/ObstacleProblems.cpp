@@ -171,6 +171,13 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
    
    mfem::Vector iDiag(dimU); iDiag = 1.0;
    J = GenerateHypreParMatrixFromDiagonal(dofOffsetsU, iDiag);
+
+   {
+      int nentries = 0;
+      auto temp = new mfem::SparseMatrix(dimU, dimUglb, nentries);
+      Hgl = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsU, dofOffsetsU, temp);
+      delete temp;
+   }
 }
 
 double ParamObstacleProblem::E(const mfem::Vector &d, const mfem::Vector & theta, int & eval_err)
@@ -224,4 +231,5 @@ ParamObstacleProblem::~ParamObstacleProblem()
    delete Kform;
    delete fform;
    delete J;
+   delete Hgl;
 }
