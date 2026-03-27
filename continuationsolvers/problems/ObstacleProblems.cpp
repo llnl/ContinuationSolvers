@@ -168,7 +168,7 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
    mfem::FunctionCoefficient theta_fc(obstacleSource);
    mfem::ParGridFunction theta_gf(Vh);
    theta_gf.ProjectCoefficient(theta_fc);
-   theta_default.Set(1.0, (*theta_gf.GetTrueDofs()));
+   InitTheta(*theta_gf.GetTrueDofs());
    
    mfem::Vector iDiag(dimU); iDiag = 1.0;
    Jd = GenerateHypreParMatrixFromDiagonal(dofOffsetsU, iDiag);
@@ -188,19 +188,19 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
 
 double ParamObstacleProblem::E(const mfem::Vector &d, const mfem::Vector & theta, int & eval_err)
 {
-   mfem::Vector Kd(K.Height()); Kd = 0.0;
-   eval_err = 0;
    MFEM_VERIFY(d.Size() == K.Width(), "ParamObstacleProblem::E - Inconsistent dimensions");
+   eval_err = 0;
+   mfem::Vector Kd(K.Height()); Kd = 0.0;
    K.Mult(d, Kd);
    return 0.5 * mfem::InnerProduct(MPI_COMM_WORLD, d, Kd) - mfem::InnerProduct(MPI_COMM_WORLD, f, d);
 }
 
 void ParamObstacleProblem::DdE(const mfem::Vector &d, const mfem::Vector &theta, mfem::Vector &gradE)
 {
-   gradE.SetSize(K.Height());
    MFEM_VERIFY(d.Size() == K.Width(), "ParamObstacleProblem::DdE - Inconsistent dimensions");
-   K.Mult(d, gradE);
    MFEM_VERIFY(f.Size() == K.Height(), "ParamObstacleProblem::DdE - Inconsistent dimensions");
+   gradE.SetSize(K.Height()); gradE = 0.0;
+   K.Mult(d, gradE);
    gradE.Add(-1.0, f);
 }
 

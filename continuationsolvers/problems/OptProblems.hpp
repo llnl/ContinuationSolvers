@@ -185,19 +185,26 @@ class ParamOptProblem : public OptProblem
 {
 protected:
     mfem::Vector theta_default; // default value of parameter
+    bool theta_initialized = false;
+    int dimTheta = 0;
+    HYPRE_BigInt * dofOffsetsTheta = nullptr;    
+    void InitTheta(const mfem::Vector & theta);
 public:
     ParamOptProblem();
-    
+    HYPRE_BigInt * GetDofOffsetsTheta() const;
+    int GetDimTheta() const { return dimTheta; };
+
+
     // ParamOptProblem specific methods:
     
     // energy objective function e(d, \theta)
     // input: d an mfem::Vector
     // input: theta an mfem::Vector (design parameter for upper level problem)
     // output: e(d, theta) a double
-    virtual double E(const mfem::Vector &d, const mfem::Vector & theta, int &) = 0;
+    virtual double E(const mfem::Vector &d, const mfem::Vector & theta, int &eval_err) = 0;
 
     // energy objective E(d, theta=theta_default)
-    double E(const mfem::Vector &d, int &) override;
+    double E(const mfem::Vector &d, int &eval_err) override;
     
 
     // gradient of energy objective De(d,\theta) / Dd 
@@ -232,7 +239,7 @@ public:
     //       gd, an mfem::Vector, which upon successfully calling the g method will be
     //                            the evaluation of the function g at d
     // output: none
-    virtual void g(const mfem::Vector &d, const mfem::Vector &theta, mfem::Vector &gd, int &) = 0;
+    virtual void g(const mfem::Vector &d, const mfem::Vector &theta, mfem::Vector &gd, int &eval_err) = 0;
     
     // Constraint function g(d, theta_default)
     void g(const mfem::Vector &d, mfem::Vector &gd, int &eval_err) override;
@@ -240,15 +247,15 @@ public:
     // input:  d, an mfem::Vector,
     // input: \theta, an mfem::Vector
     // output: The Jacobain of the constraint function g at (d, \theta), with respect to d, a pointer to an mfem::Operator
-    virtual mfem::Operator * Ddg(const mfem::Vector &, const mfem::Vector &theta) = 0;
+    virtual mfem::Operator * Ddg(const mfem::Vector &d, const mfem::Vector &theta) = 0;
 
-    mfem::Operator * Ddg(const mfem::Vector &) override;
+    mfem::Operator * Ddg(const mfem::Vector &d) override;
    
     // Jacobian of constraint with respect to parameter, D{g(d, \theta)}/D\theta
     // input: d, an mfem::Vector
     // input: \theta, an mfem::Vector
     // output: The Jacobian of the constraint function g at (d, \theta), with respect to \theta, a pointer to an mfem::Operator
-    virtual mfem::Operator * Dthg(const mfem::Vector &, const mfem::Vector & theta) = 0;
+    virtual mfem::Operator * Dthg(const mfem::Vector &d, const mfem::Vector & theta) = 0;
  
     // TODO: should this be pure virtual?
     virtual mfem::Operator * Dddgl(const mfem::Vector &d, const mfem::Vector &l, const mfem::Vector &theta) = 0;

@@ -397,14 +397,33 @@ ParamOptProblem::ParamOptProblem() : OptProblem()
   
 }
 
+void ParamOptProblem::InitTheta(const mfem::Vector & theta)
+{
+   dimTheta = theta.Size();
+   theta_default.SetSize(dimTheta);
+   theta_default.Set(1.0, theta);
+   dofOffsetsTheta = offsetsFromLocalSizes(dimTheta);  
+   theta_initialized = true;
+}
+
+HYPRE_BigInt * ParamOptProblem::GetDofOffsetsTheta() const
+{
+   MFEM_VERIFY(theta_initialized, "Attempting to call method when parameter hasn't been initialized");
+   return dofOffsetsTheta;
+}
+
+
+
+
 double ParamOptProblem::E(const mfem::Vector &d, int & eval_err)
 {
-   //TODO: verify that theta_default has been set
+   MFEM_VERIFY(theta_initialized, "Attempting to call method when parameter hasn't been initialized");
    return E(d, theta_default, eval_err);
 }
 
 void ParamOptProblem::DdE(const mfem::Vector &d, mfem::Vector &gradE)
 {
+   MFEM_VERIFY(theta_initialized, "Attempting to call method when parameter hasn't been initialized");
    DdE(d, theta_default, gradE);
 }
 
