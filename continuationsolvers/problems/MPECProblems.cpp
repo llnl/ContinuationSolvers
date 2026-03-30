@@ -52,11 +52,52 @@ MPECProblem::MPECProblem(ParamOptProblem *paramopt_) :
   constraint_blockoffsets.PartialSum();
 }
 
+double MPECProblem::E(const mfem::Vector &U, int &eval_err)
+{
+   mfem::BlockVector Ublk(primal_blockoffsets);
+   Ublk.Set(1.0, U);
+   return E(Ublk.GetBlock(0), Ublk.GetBlock(1), Ublk.GetBlock(2), eval_err);
+}
+
+void MPECProblem::DuE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector &theta, mfem::Vector &gradE)
+{
+   gradE = 0.0;
+}
+
+void MPECProblem::DpE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector &theta, mfem::Vector &gradE)
+{
+   gradE = 0.0;
+}
+
+void MPECProblem::DthE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector &theta, mfem::Vector &gradE)
+{
+   gradE = 0.0;
+}
+
+void MPECProblem::DdE(const mfem::Vector &U, mfem::Vector &gradE)
+{
+   mfem::BlockVector Ublk(primal_blockoffsets);
+   Ublk.Set(1.0, U);
+   mfem::BlockVector gradEblk(primal_blockoffsets); 
+   gradEblk = 0.0;
+   DuE(Ublk.GetBlock(0), Ublk.GetBlock(1), Ublk.GetBlock(2), gradEblk.GetBlock(0));
+   DpE(Ublk.GetBlock(0), Ublk.GetBlock(1), Ublk.GetBlock(2), gradEblk.GetBlock(1));
+   DthE(Ublk.GetBlock(0), Ublk.GetBlock(1), Ublk.GetBlock(2), gradEblk.GetBlock(2));
+   gradE.Set(1.0, gradEblk);
+}
+
+
+
+
+
+
 void MPECProblem::RegularizedComplementarity(
     const mfem::Vector &s, const mfem::Vector & z, const double & mu, 
     mfem::Vector & phi)
 {
-  //TODO verify sizes are correct
+  MFEM_VERIFY(s.Size() == z.Size(), "sizes incorrect");
+  MFEM_VERIFY(s.Size() == phi.Size(), "sizes incorrect");
+  MFEM_VERIFY(s.Size() == paramopt->GetDimM(), "sizes incorrect");
   for (int i = 0; i < s.Size(); i++)
   {
     phi(i) = s(i) + z(i) - 

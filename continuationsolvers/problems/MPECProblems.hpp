@@ -28,8 +28,19 @@ public:
     const double &mu);
   void SetRegularizationConst(const double & reg_const) { compl_reg_const = reg_const; };
   
-  //virtual double E(const mfem::Vector & u, const mfem::Vector &p, const mfem::Vector & theta, int & eval_err) = 0;
-  //double E(const mfem::Vector & U, int & eval_err) override;
+  virtual double E(const mfem::Vector & u, const mfem::Vector &p, const mfem::Vector & theta, int & eval_err) = 0;
+  double E(const mfem::Vector & U, int & eval_err) override;
+  virtual void DuE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta, mfem::Vector& gradE);
+  virtual void DpE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta, mfem::Vector& gradE);
+  virtual void DthE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta, mfem::Vector& gradE);
+  void DdE(const mfem::Vector &U, mfem::Vector & gradE);
+
+  //virtual mfem::Operator * DuuE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vectror & theta);
+  //virtual mfem::Operator * DupE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta);
+  //virtual mfem::Operator * DuthE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta);
+  //virtual mfem::Operator * DppE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta);
+  //virtual mfem::Operator * DththE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta);
+  //mfem::Operator * DddE(const mfem::Vector & U) override;
   // TODO: include 1st and 2nd derivative callbacks for energy
   void g(const mfem::Vector &U, mfem::Vector &gU, int & eval_err) override;
   mfem::Operator * Ddg(const mfem::Vector &U) override;  
