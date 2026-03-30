@@ -127,3 +127,75 @@ void MPECProblem::g(const mfem::Vector &U, mfem::Vector & gU, int & eval_err)
 }
 
 
+mfem::Operator * MPECProblem::Ddg(const mfem::Vector &U)
+{
+   mfem::BlockVector Ublk(primal_blockoffsets);
+   Ublk.Set(1.0, U);
+   auto hessddE = dynamic_cast<mfem::HypreParMatrix*>(paramopt->DddE(Ublk.GetBlock(0), Ublk.GetBlock(2)));
+   auto hessdthE = dynamic_cast<mfem::HypreParMatrix*>(paramopt->DdthE(Ublk.GetBlock(0), Ublk.GetBlock(2)));
+   auto jacdg = dynamic_cast<mfem::HypreParMatrix*>(paramopt->Ddg(Ublk.GetBlock(0), Ublk.GetBlock(2)));
+   auto jacthg = dynamic_cast<mfem::HypreParMatrix*>(paramopt->Dthg(Ublk.GetBlock(0), Ublk.GetBlock(2)));
+   MFEM_VERIFY(jacdg, "cast issue");
+   MFEM_VERIFY(jacthg, "cast issue");
+   MFEM_VERIFY(hessddE, "cast issue");
+   MFEM_VERIFY(hessdthE, "cast issue");
+   // deep copy
+   mfem::HypreParMatrix *jacdg_copy = new mfem::HypreParMatrix(*jacdg);
+   mfem::Vector scale(jacdg_copy->Height()); scale = -1.0;
+   jacdg_copy->ScaleRows(scale);
+   
+   mfem::HypreParMatrix * jacdgT = jacdg_copy->Transpose();
+
+   // deep copy
+   mfem::HypreParMatrix *jacthg_copy = new mfem::HypreParMatrix(*jacthg);
+   jacthg_copy->ScaleRows(scale);
+
+
+
+   // construct diagonal blocks
+   mfem::HypreParMatrix * Ident;
+   mfem::HypreParMatrix * negIdent;
+
+   scale = 1.0;
+   Ident = GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsM(), scale);
+   scale = -1.0;
+   negIdent = GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsM(), scale);
+ 
+   // after these calls the member variables DsPhi and Dzphi will be available for use
+   auto temp1 = DsRegularizedComplementarity(Ublk.GetBlock(3), Ublk.GetBlock(4), compl_reg_const);
+   auto temp2 = DzRegularizedComplementarity(Ublk.GetBlock(3), Ublk.GetBlock(4), compl_reg_const);
+
+
+   // build the monolithic HypreParMatrix Jacobian
+   mfem::Array2D<const mfem::HypreParMatrix *> blockmat(4, 5);
+   blockmat(0, 0) = hessddE; // should be Hessian of Lagrangian and not just of energy
+   blockmat(0, 1) = jacdgT;
+   blockmat(0, 2) = hessdthE; // should be Hessian of Lagrangian and not just of energy
+   blockmat(0, 3) = nullptr;
+   blockmat(0, 4) = nullptr;
+   blockmat(1, 0) = jacdg_copy;
+   blockmat(1, 1) = nullptr;
+   blockmat(1, 2) = jacthg_copy;
+   blockmat(1, 3) = Ident;
+   blockmat(1, 4) = nullptr;
+   blockmat(2, 0) = nullptr;
+   blockmat(2, 1) = Ident;
+   blockmat(2, 2) = nullptr;
+   blockmat(2, 3) = nullptr;
+   blockmat(2, 4) = negIdent;
+   blockmat(3, 0) = nullptr;
+   blockmat(3, 1) = nullptr;
+   blockmat(3, 2) = nullptr;
+   blockmat(3, 3) = DsPhi;
+   blockmat(3, 4) = DzPhi;
+    
+   constraintJacobian = HypreParMatrixFromBlocks(blockmat);
+
+   delete jacdg_copy;
+   delete jacthg_copy;
+   delete jacdgT;
+   delete Ident;
+   delete negIdent;
+   
+   return constraintJacobian;
+}

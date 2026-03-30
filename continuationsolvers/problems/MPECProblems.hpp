@@ -17,6 +17,7 @@ protected:
   double compl_reg_const = 1.e-2; // complementarity regularization 
   mfem::HypreParMatrix * DsPhi = nullptr;
   mfem::HypreParMatrix * DzPhi = nullptr;
+  mfem::HypreParMatrix * constraintJacobian = nullptr;
 public:
   MPECProblem(ParamOptProblem * paramopt_);
   void RegularizedComplementarity(const mfem::Vector& s, const mfem::Vector& z, 
@@ -31,7 +32,7 @@ public:
   //double E(const mfem::Vector & U, int & eval_err) override;
   // TODO: include 1st and 2nd derivative callbacks for energy
   void g(const mfem::Vector &U, mfem::Vector &gU, int & eval_err) override;
-  //mfem::Operator * Ddg(const mfem::Vector &U) override;  
+  mfem::Operator * Ddg(const mfem::Vector &U) override;  
 };
 
 

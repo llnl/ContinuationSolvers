@@ -220,14 +220,20 @@ public:
     //        gradE an mfem::Vector, which will be the gradient of E at d
     // output: none    
     void DdE(const mfem::Vector &d, mfem::Vector &gradE) override;
-    
-
+   
+ 
     // Hessian of energy objective D^2 e / Dd^2
     // input:  d, an mfem::Vector,
     // input: \theta, an mfem::Vector,
     // output: The Hessian of the energy objective at d, a pointer to an mfem::Operator
     virtual mfem::Operator * DddE(const mfem::Vector &d, const mfem::Vector & theta) = 0;
   
+    // mixed Hessian of energy objective D^2 e / (Dth Dd)
+    // input:  d, an mfem::Vector,
+    // input: \theta, an mfem::Vector,
+    // output: The Hessian of the energy objective at d, a pointer to an mfem::Operator
+    virtual mfem::Operator * DdthE(const mfem::Vector &d, const mfem::Vector & theta) = 0;
+
     // Hessian of energy objective D^2 e / Dd^2
     // input:  d, an mfem::Vector
     // output: The Hessian of the energy objective at d, a pointer to a Operator

@@ -33,7 +33,7 @@ public :
 class ParamObstacleProblem : public ParamOptProblem
 {
 protected:
-   // data to define energy objective function e(d) = 0.5 d^T K d - f^T d, g(d) = d >= \theta
+   // data to define energy objective function e(d, \theta) = 0.5 d^T K d - f^T d, g(d, \theta) = d - \theta >= 0
    // stiffness matrix used to define objective
    mfem::ParBilinearForm *Kform = nullptr;
    mfem::ParLinearForm   *fform = nullptr;
@@ -43,18 +43,19 @@ protected:
    mfem::HypreParMatrix* Jth = nullptr;
    mfem::HypreParMatrix* Hddgl = nullptr;  // Hessian of (gap^T Lagrange multiplier) D^2 / Dd^2
    mfem::HypreParMatrix* Hthdgl = nullptr; // Hessian of (gap^T Lagrange multiplier) D^2 / (Dth Dd)
+   mfem::HypreParMatrix* HdthE = nullptr; // mixed Hessian of (objective) D^2 / (Dd Dth)    
    mfem::ParFiniteElementSpace* Vh = nullptr;
    mfem::Vector f;
 public :
    ParamObstacleProblem(mfem::ParFiniteElementSpace*, mfem_fun_ptr_type fSource, mfem_fun_ptr_type obstacleSource);
-   double E(const mfem::Vector &d, const mfem::Vector &theta, int &eval_err);
-   void DdE(const mfem::Vector &d, const mfem::Vector &theta, mfem::Vector &gradE);
-   mfem::Operator* DddE(const mfem::Vector &d, const mfem::Vector &theta);
-   mfem::Operator* DthdE(const mfem::Vector &d, const mfem::Vector & theta);
-   void g(const mfem::Vector &d, const mfem::Vector &theta, mfem::Vector &gd, int &eval_err);
-   mfem::Operator* Ddg(const mfem::Vector &d, const mfem::Vector &theta);
-   mfem::Operator* Dthg(const mfem::Vector &d, const mfem::Vector &theta);
-   mfem::Operator* Dddgl(const mfem::Vector & d, const mfem::Vector &l, const mfem::Vector &theta);
+   double E(const mfem::Vector &d, const mfem::Vector &theta, int &eval_err) override;
+   void DdE(const mfem::Vector &d, const mfem::Vector &theta, mfem::Vector &gradE) override;
+   mfem::Operator* DddE(const mfem::Vector &d, const mfem::Vector &theta) override;
+   mfem::Operator* DdthE(const mfem::Vector &d, const mfem::Vector & theta) override;
+   void g(const mfem::Vector &d, const mfem::Vector &theta, mfem::Vector &gd, int &eval_err) override;
+   mfem::Operator* Ddg(const mfem::Vector &d, const mfem::Vector &theta) override;
+   mfem::Operator* Dthg(const mfem::Vector &d, const mfem::Vector &theta) override;
+   mfem::Operator* Dddgl(const mfem::Vector & d, const mfem::Vector &l, const mfem::Vector &theta) override;
    mfem::Operator* Dthdgl(const mfem::Vector & d, const mfem::Vector &l, const mfem::Vector &theta);
    virtual ~ParamObstacleProblem();
 };

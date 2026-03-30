@@ -160,7 +160,6 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
    fform->ParallelAssemble(F);
    f.SetSize(dimU);
    f.Set(1.0, F);
-   
 
    // provided obstacle will be default param value
    theta_default.SetSize(dimU);
@@ -182,6 +181,7 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
       auto temp = new mfem::SparseMatrix(dimU, dimUglb, nentries);
       Hddgl = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsU, dofOffsetsU, temp);
       Hthdgl = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsU, dofOffsetsU, temp);
+      HdthE = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsU, dofOffsetsU, temp);
       delete temp;
    }
 }
@@ -189,6 +189,7 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
 double ParamObstacleProblem::E(const mfem::Vector &d, const mfem::Vector & theta, int & eval_err)
 {
    MFEM_VERIFY(d.Size() == K.Width(), "ParamObstacleProblem::E - Inconsistent dimensions");
+   MFEM_VERIFY(f.Size() == K.Height(), "ParamObstacleProblem::E - Inconsistent dimensions");
    eval_err = 0;
    mfem::Vector Kd(K.Height()); Kd = 0.0;
    K.Mult(d, Kd);
@@ -209,7 +210,13 @@ mfem::Operator * ParamObstacleProblem::DddE(const mfem::Vector &d, const mfem::V
    return &K; 
 }
 
-// g(d) = d >= \theta
+mfem::Operator * ParamObstacleProblem::DdthE(const mfem::Vector & d, const mfem::Vector &theta)
+{
+  return HdthE;
+}
+
+
+// g(d, \theta) = d - \theta >= 0
 void ParamObstacleProblem::g(const mfem::Vector &d, const mfem::Vector & theta, mfem::Vector &gd, int & eval_err)
 {
    eval_err = 0;
