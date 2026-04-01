@@ -18,6 +18,17 @@ protected:
   mfem::HypreParMatrix * DsPhi = nullptr;
   mfem::HypreParMatrix * DzPhi = nullptr;
   mfem::HypreParMatrix * constraintJacobian = nullptr;
+
+  // Hessian energy
+  mfem::HypreParMatrix * HE = nullptr; 
+
+  // Hessian blocks (energy)
+  mfem::HypreParMatrix * HuuE = nullptr;
+  mfem::HypreParMatrix * HupE = nullptr;
+  mfem::HypreParMatrix * HuthE = nullptr;
+  mfem::HypreParMatrix * HppE = nullptr;
+  mfem::HypreParMatrix * HpthE = nullptr;
+  mfem::HypreParMatrix * HththE = nullptr;
 public:
   MPECProblem(ParamOptProblem * paramopt_);
   void RegularizedComplementarity(const mfem::Vector& s, const mfem::Vector& z, 
@@ -28,19 +39,23 @@ public:
     const double &mu);
   void SetRegularizationConst(const double & reg_const) { compl_reg_const = reg_const; };
   
+  // objective in terms of u, p, and theta
   virtual double E(const mfem::Vector & u, const mfem::Vector &p, const mfem::Vector & theta, int & eval_err) = 0;
   double E(const mfem::Vector & U, int & eval_err) override;
+  /* DuE, DpE, DthE assumed zero, user should implement nonzero ones */
   virtual void DuE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta, mfem::Vector& gradE);
   virtual void DpE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta, mfem::Vector& gradE);
   virtual void DthE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta, mfem::Vector& gradE);
   void DdE(const mfem::Vector &U, mfem::Vector & gradE);
 
-  //virtual mfem::Operator * DuuE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vectror & theta);
-  //virtual mfem::Operator * DupE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta);
-  //virtual mfem::Operator * DuthE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta);
-  //virtual mfem::Operator * DppE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta);
-  //virtual mfem::Operator * DththE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta);
-  //mfem::Operator * DddE(const mfem::Vector & U) override;
+  /* DuuE, DupE, DuthE, DppE, DpthE, DththE assumed zero, user should implement nonzero ones */
+  virtual mfem::Operator * DuuE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta);
+  virtual mfem::Operator * DupE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta);
+  virtual mfem::Operator * DuthE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta);
+  virtual mfem::Operator * DppE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta);
+  virtual mfem::Operator * DpthE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta);
+  virtual mfem::Operator * DththE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta);
+  mfem::Operator * DddE(const mfem::Vector & U) override;
   // TODO: include 1st and 2nd derivative callbacks for energy
   void g(const mfem::Vector &U, mfem::Vector &gU, int & eval_err) override;
   mfem::Operator * Ddg(const mfem::Vector &U) override;  

@@ -187,13 +187,14 @@ protected:
     mfem::Vector theta_default; // default value of parameter
     bool theta_initialized = false;
     int dimTheta = 0;
+    int dimThetaglb; 
     HYPRE_BigInt * dofOffsetsTheta = nullptr;    
     void InitTheta(const mfem::Vector & theta);
 public:
     ParamOptProblem();
     HYPRE_BigInt * GetDofOffsetsTheta() const;
     int GetDimTheta() const { return dimTheta; };
-
+    int GetDimThetaGlb() const { return dimThetaglb; };
 
     // ParamOptProblem specific methods:
     

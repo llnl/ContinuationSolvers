@@ -86,7 +86,149 @@ void MPECProblem::DdE(const mfem::Vector &U, mfem::Vector &gradE)
    gradE.Set(1.0, gradEblk);
 }
 
+mfem::Operator * MPECProblem::DuuE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector &theta)
+{
+   // assume zero
+   // default behavior, user should override base class implementation if this Hessian is nonzero
+   if (!HuuE)
+   {
+      int nentries = 0;
+      auto temp = new mfem::SparseMatrix(paramopt->GetDimU(), paramopt->GetDimUGlb(), nentries);
+      HuuE = GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsU(), temp);
+      delete temp;
+   }
+   return HuuE;
+} 
 
+mfem::Operator * MPECProblem::DupE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector &theta)
+{
+   // assume zero
+   // default behavior, user should override base class implementation if this Hessian is nonzero
+   if (!HupE)
+   {
+      int nentries = 0;
+      auto temp = new mfem::SparseMatrix(paramopt->GetDimU(), paramopt->GetDimMGlb(), nentries);
+      HupE = GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsM(), temp);
+      delete temp;
+   }
+   return HupE;
+} 
+
+
+mfem::Operator * MPECProblem::DuthE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector &theta)
+{
+   // assume zero
+   // default behavior, user should override base class implementation if this Hessian is nonzero
+   if (!HuthE)
+   {
+      int nentries = 0;
+      auto temp = new mfem::SparseMatrix(paramopt->GetDimU(), paramopt->GetDimThetaGlb(), nentries);
+      HuthE = GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsTheta(), temp);
+      delete temp;
+   }
+   return HuthE;
+} 
+
+mfem::Operator * MPECProblem::DppE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector &theta)
+{
+   // assume zero
+   // default behavior, user should override base class implementation if this Hessian is nonzero
+   if (!HppE)
+   {
+      int nentries = 0;
+      auto temp = new mfem::SparseMatrix(paramopt->GetDimM(), paramopt->GetDimMGlb(), nentries);
+      HppE = GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsM(), paramopt->GetDofOffsetsM(), temp);
+      delete temp;
+   }
+   return HppE;
+} 
+
+mfem::Operator * MPECProblem::DpthE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector &theta)
+{
+   // assume zero
+   // default behavior, user should override base class implementation if this Hessian is nonzero
+   if (!HpthE)
+   {
+      int nentries = 0;
+      auto temp = new mfem::SparseMatrix(paramopt->GetDimM(), paramopt->GetDimThetaGlb(), nentries);
+      HpthE = GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsM(), paramopt->GetDofOffsetsTheta(), temp);
+      delete temp;
+   }
+   return HpthE;
+} 
+
+
+mfem::Operator * MPECProblem::DththE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector &theta)
+{
+   // assume zero
+   // default behavior, user should override base class implementation if this Hessian is nonzero
+   if (!HththE)
+   {
+      int nentries = 0;
+      auto temp = new mfem::SparseMatrix(paramopt->GetDimTheta(), paramopt->GetDimThetaGlb(), nentries);
+      HththE = GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsTheta(), paramopt->GetDofOffsetsTheta(), temp);
+      delete temp;
+   }
+   return HththE;
+} 
+
+mfem::Operator * MPECProblem::DddE(const mfem::Vector &U)
+{
+   //cast to block vector, evaluate individual blocks, form monolithic matrix
+   mfem::BlockVector Ublk(primal_blockoffsets);
+   Ublk.Set(1.0, U);
+
+   auto Huu   = dynamic_cast<mfem::HypreParMatrix*>(DuuE(Ublk.GetBlock(0), Ublk.GetBlock(1), Ublk.GetBlock(2)));
+   auto Hup   = dynamic_cast<mfem::HypreParMatrix*>(DupE(Ublk.GetBlock(0), Ublk.GetBlock(1), Ublk.GetBlock(2)));
+   auto Huth  = dynamic_cast<mfem::HypreParMatrix*>(DuthE(Ublk.GetBlock(0), Ublk.GetBlock(1), Ublk.GetBlock(2)));
+   auto Hpp   = dynamic_cast<mfem::HypreParMatrix*>(DppE(Ublk.GetBlock(0), Ublk.GetBlock(1), Ublk.GetBlock(2)));
+   auto Hpth  = dynamic_cast<mfem::HypreParMatrix*>(DpthE(Ublk.GetBlock(0), Ublk.GetBlock(1), Ublk.GetBlock(2)));
+   auto Hthth = dynamic_cast<mfem::HypreParMatrix*>(DththE(Ublk.GetBlock(0), Ublk.GetBlock(1), Ublk.GetBlock(2)));
+   MFEM_VERIFY(Huu, "cast issue");
+   MFEM_VERIFY(Hup, "cast issue");
+   MFEM_VERIFY(Huth, "cast issue");
+   MFEM_VERIFY(Hpp, "cast issue");
+   MFEM_VERIFY(Hpth, "cast issue");
+   MFEM_VERIFY(Hthth, "cast issue");
+   
+   
+   auto Hpu  = Hup->Transpose();
+   auto Hthu = Huth->Transpose();
+   auto Hthp = Hpth->Transpose();
+   
+   // build the monolithic HypreParMatrix Jacobian
+   mfem::Array2D<const mfem::HypreParMatrix *> blockmat(5, 5);
+   for (int i = 0; i < 5; i++)
+   {
+      for (int j = 0; j < 5; j++)
+      {
+        blockmat(i, j) = nullptr;
+      }
+   }
+   blockmat(0, 0) = Huu;
+   blockmat(0, 1) = Hup;
+   blockmat(0, 2) = Huth;
+   blockmat(1, 0) = Hpu;
+   blockmat(1, 1) = Hpp;
+   blockmat(1, 2) = Hpth;
+   blockmat(2, 0) = Hthu;
+   blockmat(2, 1) = Hthp;
+   blockmat(2, 2) = Hthth;
+   
+   if (HE)
+   {
+      delete HE;
+      HE = nullptr;
+   }
+   HE = HypreParMatrixFromBlocks(blockmat);
+
+
+
+   delete Hpu;
+   delete Hthu;
+   delete Hthp;
+   return HE;
+}
 
 
 
