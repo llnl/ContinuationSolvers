@@ -279,7 +279,7 @@ mfem::Operator * MPECProblem::DsRegularizedComplementarity(
    mfem::Vector diag(s.Size()); diag = 0.0;
    for (int i = 0; i < s.Size(); i++)
    {
-     diag(i) = 1.0 + s(i) / std::pow(std::pow(s(i), 2) + std::pow(z(i), 2) + mu, 0.5);
+     diag(i) = 1.0 - s(i) / std::pow(std::pow(s(i), 2) + std::pow(z(i), 2) + mu, 0.5);
    }
    if (DsPhi)
    {
@@ -296,7 +296,7 @@ mfem::Operator * MPECProblem::DzRegularizedComplementarity(
    mfem::Vector diag(s.Size()); diag = 0.0;
    for (int i = 0; i < s.Size(); i++)
    {
-     diag(i) = 1.0 + z(i) / std::pow(std::pow(s(i), 2) + std::pow(z(i), 2) + mu, 0.5);
+     diag(i) = 1.0 - z(i) / std::pow(std::pow(s(i), 2) + std::pow(z(i), 2) + mu, 0.5);
    }
    if (DzPhi)
    {
@@ -314,21 +314,21 @@ void MPECProblem::g(const mfem::Vector &U, mfem::Vector & gU, int & eval_err)
    mfem::BlockVector gUblk(constraint_blockoffsets); gUblk = 0.0;
    
    // \nabla_u E - (\nabla_u g)^T p
-   paramopt->DdE(Ublk.GetBlock(0), Ublk.GetBlock(2), gUblk.GetBlock(0));
-   auto dg = paramopt->Ddg(Ublk.GetBlock(0), Ublk.GetBlock(2));
-   dg->AddMult(Ublk.GetBlock(1), gUblk.GetBlock(0), -1.0);
+   paramopt->DdE(Ublk.GetBlock(0), Ublk.GetBlock(2), gUblk.GetBlock(0)); // \nabla_u E
+   auto dg = paramopt->Ddg(Ublk.GetBlock(0), Ublk.GetBlock(2)); // compute Jacobian \nabla_u g
+   dg->AddMultTranspose(Ublk.GetBlock(1), gUblk.GetBlock(0), -1.0);
 
 
    // g(u, theta) - s
-   paramopt->g(Ublk.GetBlock(0), Ublk.GetBlock(2), gUblk.GetBlock(1), eval_err);
-   gUblk.GetBlock(1).Add(-1.0, Ublk.GetBlock(3));
+   paramopt->g(Ublk.GetBlock(0), Ublk.GetBlock(2), gUblk.GetBlock(1), eval_err); // g
+   gUblk.GetBlock(1).Add(-1.0, Ublk.GetBlock(3)); // -s
 
 
    // p - z
    gUblk.GetBlock(2).Set(1.0, Ublk.GetBlock(1));
    gUblk.GetBlock(2).Add(-1.0, Ublk.GetBlock(4));
 
-   // Phi
+   // Phi(s, z)
    RegularizedComplementarity(Ublk.GetBlock(3), Ublk.GetBlock(4), compl_reg_const, gUblk.GetBlock(3));
 
    gU.Set(1.0, gUblk);
@@ -347,18 +347,10 @@ mfem::Operator * MPECProblem::Ddg(const mfem::Vector &U)
    MFEM_VERIFY(jacthg, "cast issue");
    MFEM_VERIFY(hessddE, "cast issue");
    MFEM_VERIFY(hessdthE, "cast issue");
-   // deep copy
-   mfem::HypreParMatrix *jacdg_copy = new mfem::HypreParMatrix(*jacdg);
-   mfem::Vector scale(jacdg_copy->Height()); scale = -1.0;
-   jacdg_copy->ScaleRows(scale);
    
-   mfem::HypreParMatrix * jacdgT = jacdg_copy->Transpose();
-
-   // deep copy
-   mfem::HypreParMatrix *jacthg_copy = new mfem::HypreParMatrix(*jacthg);
-   jacthg_copy->ScaleRows(scale);
-
-
+   mfem::HypreParMatrix * jacdgT = jacdg->Transpose();
+   mfem::Vector scale(jacdgT->Height()); scale = -1.0;
+   jacdgT->ScaleRows(scale);
 
    // construct diagonal blocks
    mfem::HypreParMatrix * Ident;
@@ -375,19 +367,23 @@ mfem::Operator * MPECProblem::Ddg(const mfem::Vector &U)
 
 
    // build the monolithic HypreParMatrix Jacobian
+   //int nentries = 0;
+   //auto tempsu = new mfem::SparseMatrix(paramopt->GetDimM(), paramopt->GetDimUGlb(), nentries);
+   //auto Hsu = GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsM(), paramopt->GetDofOffsetsU(), tempsu);
+   //delete tempsu;
    mfem::Array2D<const mfem::HypreParMatrix *> blockmat(4, 5);
    blockmat(0, 0) = hessddE; // should be Hessian of Lagrangian and not just of energy
    blockmat(0, 1) = jacdgT;
    blockmat(0, 2) = hessdthE; // should be Hessian of Lagrangian and not just of energy
-   blockmat(0, 3) = nullptr;
-   blockmat(0, 4) = nullptr;
-   blockmat(1, 0) = jacdg_copy;
+   blockmat(0, 3) = nullptr; 
+   blockmat(0, 4) = nullptr; 
+   blockmat(1, 0) = jacdg;
    blockmat(1, 1) = nullptr;
-   blockmat(1, 2) = jacthg_copy;
-   blockmat(1, 3) = Ident;
+   blockmat(1, 2) = jacthg;
+   blockmat(1, 3) = negIdent; // g(u, \theta) - s
    blockmat(1, 4) = nullptr;
    blockmat(2, 0) = nullptr;
-   blockmat(2, 1) = Ident;
+   blockmat(2, 1) = Ident; // p - z
    blockmat(2, 2) = nullptr;
    blockmat(2, 3) = nullptr;
    blockmat(2, 4) = negIdent;
@@ -396,11 +392,9 @@ mfem::Operator * MPECProblem::Ddg(const mfem::Vector &U)
    blockmat(3, 2) = nullptr;
    blockmat(3, 3) = DsPhi;
    blockmat(3, 4) = DzPhi;
-    
+   
    constraintJacobian = HypreParMatrixFromBlocks(blockmat);
 
-   delete jacdg_copy;
-   delete jacthg_copy;
    delete jacdgT;
    delete Ident;
    delete negIdent;
@@ -422,6 +416,12 @@ ObstacleDesignProblem::ObstacleDesignProblem(ParamOptProblem *paramopt_) :
    HththE = GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsTheta(), diag);
 }
 
+double ObstacleDesignProblem::E(const mfem::Vector &U, int &eval_err)
+{
+   mfem::BlockVector Ublk(primal_blockoffsets);
+   Ublk.Set(1.0, U);
+   return E(Ublk.GetBlock(0), Ublk.GetBlock(1), Ublk.GetBlock(2), eval_err);
+}
 
 double ObstacleDesignProblem::E(const mfem::Vector & u, const mfem::Vector &p, const mfem::Vector & theta, int & eval_err)
 {

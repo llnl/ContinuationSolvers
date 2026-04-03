@@ -66,6 +66,7 @@ class ObstacleDesignProblem : public MPECProblem
 {
 public:
   ObstacleDesignProblem(ParamOptProblem * paramopt_);
+  double E(const mfem::Vector & U, int & eval_err) override;
   double E(const mfem::Vector & u, const mfem::Vector &p, const mfem::Vector & theta, int & eval_err) override;
   void DthE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta, mfem::Vector& gradE) override;
   mfem::Operator * DththE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta) override;
