@@ -50,6 +50,34 @@ MPECProblem::MPECProblem(ParamOptProblem *paramopt_) :
   constraint_blockoffsets[3] = paramopt->GetDimM();
   constraint_blockoffsets[4] = paramopt->GetDimM();
   constraint_blockoffsets.PartialSum();
+
+
+  // default assignement for Hessian blocks
+  int nentries = 0;
+  {
+     auto temp = std::unique_ptr<mfem::SparseMatrix>(new mfem::SparseMatrix(paramopt->GetDimU(), paramopt->GetDimUGlb(), nentries));
+     HuuE.reset(GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsU(), temp.get()));
+  }
+  {
+     auto temp = std::unique_ptr<mfem::SparseMatrix>(new mfem::SparseMatrix(paramopt->GetDimU(), paramopt->GetDimMGlb(), nentries));
+     HupE.reset(GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsM(), temp.get()));
+  }
+  {
+     auto temp = std::unique_ptr<mfem::SparseMatrix>(new mfem::SparseMatrix(paramopt->GetDimU(), paramopt->GetDimThetaGlb(), nentries));
+     HuthE.reset(GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsTheta(), temp.get()));
+  }
+  {
+     auto temp = std::unique_ptr<mfem::SparseMatrix>(new mfem::SparseMatrix(paramopt->GetDimM(), paramopt->GetDimMGlb(), nentries));
+     HppE.reset(GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsM(), paramopt->GetDofOffsetsM(), temp.get()));
+  }
+  {
+     auto temp = std::unique_ptr<mfem::SparseMatrix>(new mfem::SparseMatrix(paramopt->GetDimM(), paramopt->GetDimThetaGlb(), nentries));
+     HpthE.reset(GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsM(), paramopt->GetDofOffsetsTheta(), temp.get()));
+  }
+  {
+     auto temp = std::unique_ptr<mfem::SparseMatrix>(new mfem::SparseMatrix(paramopt->GetDimTheta(), paramopt->GetDimThetaGlb(), nentries));
+     HththE.reset(GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsTheta(), paramopt->GetDofOffsetsTheta(), temp.get()));
+  }
 }
 
 double MPECProblem::E(const mfem::Vector &U, int &eval_err)
@@ -90,28 +118,14 @@ mfem::Operator * MPECProblem::DuuE(const mfem::Vector &u, const mfem::Vector &p,
 {
    // assume zero
    // default behavior, user should override base class implementation if this Hessian is nonzero
-   if (!HuuE)
-   {
-      int nentries = 0;
-      auto temp = new mfem::SparseMatrix(paramopt->GetDimU(), paramopt->GetDimUGlb(), nentries);
-      HuuE = GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsU(), temp);
-      delete temp;
-   }
-   return HuuE;
+   return HuuE.get();
 } 
 
 mfem::Operator * MPECProblem::DupE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector &theta)
 {
    // assume zero
    // default behavior, user should override base class implementation if this Hessian is nonzero
-   if (!HupE)
-   {
-      int nentries = 0;
-      auto temp = new mfem::SparseMatrix(paramopt->GetDimU(), paramopt->GetDimMGlb(), nentries);
-      HupE = GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsM(), temp);
-      delete temp;
-   }
-   return HupE;
+   return HupE.get();
 } 
 
 
@@ -119,42 +133,21 @@ mfem::Operator * MPECProblem::DuthE(const mfem::Vector &u, const mfem::Vector &p
 {
    // assume zero
    // default behavior, user should override base class implementation if this Hessian is nonzero
-   if (!HuthE)
-   {
-      int nentries = 0;
-      auto temp = new mfem::SparseMatrix(paramopt->GetDimU(), paramopt->GetDimThetaGlb(), nentries);
-      HuthE = GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsTheta(), temp);
-      delete temp;
-   }
-   return HuthE;
+   return HuthE.get();
 } 
 
 mfem::Operator * MPECProblem::DppE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector &theta)
 {
    // assume zero
    // default behavior, user should override base class implementation if this Hessian is nonzero
-   if (!HppE)
-   {
-      int nentries = 0;
-      auto temp = new mfem::SparseMatrix(paramopt->GetDimM(), paramopt->GetDimMGlb(), nentries);
-      HppE = GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsM(), paramopt->GetDofOffsetsM(), temp);
-      delete temp;
-   }
-   return HppE;
+   return HppE.get();
 } 
 
 mfem::Operator * MPECProblem::DpthE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector &theta)
 {
    // assume zero
    // default behavior, user should override base class implementation if this Hessian is nonzero
-   if (!HpthE)
-   {
-      int nentries = 0;
-      auto temp = new mfem::SparseMatrix(paramopt->GetDimM(), paramopt->GetDimThetaGlb(), nentries);
-      HpthE = GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsM(), paramopt->GetDofOffsetsTheta(), temp);
-      delete temp;
-   }
-   return HpthE;
+   return HpthE.get();
 } 
 
 
@@ -162,14 +155,7 @@ mfem::Operator * MPECProblem::DththE(const mfem::Vector &u, const mfem::Vector &
 {
    // assume zero
    // default behavior, user should override base class implementation if this Hessian is nonzero
-   if (!HththE)
-   {
-      int nentries = 0;
-      auto temp = new mfem::SparseMatrix(paramopt->GetDimTheta(), paramopt->GetDimThetaGlb(), nentries);
-      HththE = GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsTheta(), paramopt->GetDofOffsetsTheta(), temp);
-      delete temp;
-   }
-   return HththE;
+   return HththE.get();
 } 
 
 mfem::Operator * MPECProblem::DddE(const mfem::Vector &U)
@@ -192,9 +178,12 @@ mfem::Operator * MPECProblem::DddE(const mfem::Vector &U)
    MFEM_VERIFY(Hthth, "cast issue");
    
    
-   auto Hpu  = Hup->Transpose();
-   auto Hthu = Huth->Transpose();
-   auto Hthp = Hpth->Transpose();
+   std::unique_ptr<mfem::HypreParMatrix> Hpu;
+   std::unique_ptr<mfem::HypreParMatrix> Hthu;
+   std::unique_ptr<mfem::HypreParMatrix> Hthp;
+   Hpu.reset(Hup->Transpose());
+   Hthu.reset(Huth->Transpose());
+   Hthp.reset(Hpth->Transpose());
    
    // build the monolithic HypreParMatrix Jacobian
    mfem::Array2D<const mfem::HypreParMatrix *> blockmat(5, 5);
@@ -208,11 +197,11 @@ mfem::Operator * MPECProblem::DddE(const mfem::Vector &U)
    blockmat(0, 0) = Huu;
    blockmat(0, 1) = Hup;
    blockmat(0, 2) = Huth;
-   blockmat(1, 0) = Hpu;
+   blockmat(1, 0) = Hpu.get();
    blockmat(1, 1) = Hpp;
    blockmat(1, 2) = Hpth;
-   blockmat(2, 0) = Hthu;
-   blockmat(2, 1) = Hthp;
+   blockmat(2, 0) = Hthu.get();
+   blockmat(2, 1) = Hthp.get();
    blockmat(2, 2) = Hthth;
 
 
@@ -220,39 +209,28 @@ mfem::Operator * MPECProblem::DddE(const mfem::Vector &U)
    // the expected size
    int nentries = 0;
    // Hus
-   auto tempus = new mfem::SparseMatrix(paramopt->GetDimU(), paramopt->GetDimMGlb(), nentries);
-   auto Hus = GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsM(), tempus);
-   delete tempus;
-   auto tempsu = new mfem::SparseMatrix(paramopt->GetDimM(), paramopt->GetDimUGlb(), nentries);
-   auto Hsu = GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsM(), paramopt->GetDofOffsetsU(), tempsu);
-   delete tempsu;
-   
-
-   blockmat(0, 3) = Hus;
-   blockmat(0, 4) = Hus;
-   blockmat(3, 0) = Hsu;
-   blockmat(4, 0) = Hsu;
+   std::unique_ptr<mfem::HypreParMatrix> Hus;
+   {
+      auto temp = std::unique_ptr<mfem::SparseMatrix>(new mfem::SparseMatrix(paramopt->GetDimU(), paramopt->GetDimMGlb(), nentries));
+      Hus.reset(GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsM(), temp.get()));
+   }
+   std::unique_ptr<mfem::HypreParMatrix> Hsu;
+   {
+      auto temp = std::unique_ptr<mfem::SparseMatrix>(new mfem::SparseMatrix(paramopt->GetDimM(), paramopt->GetDimUGlb(), nentries));
+      Hsu.reset(GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsM(), paramopt->GetDofOffsetsU(), temp.get()));
+   }
+   blockmat(0, 3) = Hus.get();
+   blockmat(0, 4) = Hus.get();
+   blockmat(3, 0) = Hsu.get();
+   blockmat(4, 0) = Hsu.get();
    // end adding in the zero matrix blocks   
 
-
-   if (HE)
-   {
-      delete HE;
-      HE = nullptr;
-   }
-   HE = HypreParMatrixFromBlocks(blockmat);
+   HE.reset(HypreParMatrixFromBlocks(blockmat));
 
    MFEM_VERIFY(HE->Width() == dimU, "size issue");
    MFEM_VERIFY(HE->Height() == dimU, "size issue");
 
-
-
-   delete Hpu;
-   delete Hthu;
-   delete Hthp;
-   delete Hus;
-   delete Hsu;
-   return HE;
+   return HE.get();
 }
 
 
@@ -281,12 +259,8 @@ mfem::Operator * MPECProblem::DsRegularizedComplementarity(
    {
      diag(i) = 1.0 - s(i) / std::pow(std::pow(s(i), 2) + std::pow(z(i), 2) + mu, 0.5);
    }
-   if (DsPhi)
-   {
-      delete DsPhi;
-   }
-   DsPhi = GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsM(), diag);
-   return DsPhi;
+   DsPhi.reset(GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsM(), diag));
+   return DsPhi.get();
 }
 
 mfem::Operator * MPECProblem::DzRegularizedComplementarity(
@@ -298,12 +272,8 @@ mfem::Operator * MPECProblem::DzRegularizedComplementarity(
    {
      diag(i) = 1.0 - z(i) / std::pow(std::pow(s(i), 2) + std::pow(z(i), 2) + mu, 0.5);
    }
-   if (DzPhi)
-   {
-      delete DzPhi;
-   }
-   DzPhi = GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsM(), diag);
-   return DzPhi;
+   DzPhi.reset(GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsM(), diag));
+   return DzPhi.get();
 }
 
 void MPECProblem::g(const mfem::Vector &U, mfem::Vector & gU, int & eval_err)
@@ -390,60 +360,20 @@ mfem::Operator * MPECProblem::Ddg(const mfem::Vector &U)
    blockmat(3, 0) = nullptr;
    blockmat(3, 1) = nullptr;
    blockmat(3, 2) = nullptr;
-   blockmat(3, 3) = DsPhi;
-   blockmat(3, 4) = DzPhi;
+   blockmat(3, 3) = DsPhi.get();
+   blockmat(3, 4) = DzPhi.get();
    
-   constraintJacobian = HypreParMatrixFromBlocks(blockmat);
+   constraintJacobian.reset(HypreParMatrixFromBlocks(blockmat));
 
    delete jacdgT;
    delete Ident;
    delete negIdent;
    
-   return constraintJacobian;
+   return constraintJacobian.get();
 }
 
 MPECProblem::~MPECProblem()
 {
-   if(!HE)
-   {
-      delete HE;
-   }
-   if (!HuuE)
-   {
-      delete HuuE;
-   }
-   if (!HupE)
-   {
-      delete HupE;
-   }
-   if (!HuthE)
-   {
-      delete HuthE;
-   }
-   if (!HppE)
-   {
-      delete HppE;
-   }
-   if (!HpthE)
-   {
-      delete HpthE;
-   }
-   if (!HththE)
-   {
-      delete HththE;
-   }
-   if (!DsPhi)
-   {
-      delete DsPhi;
-   }
-   if (!DzPhi)
-   {
-      delete DzPhi;
-   }
-   if (!constraintJacobian)
-   {
-      delete constraintJacobian;
-   }
 }
 
 
@@ -452,12 +382,8 @@ ObstacleDesignProblem::ObstacleDesignProblem(ParamOptProblem *paramopt_) :
 {
    // reconfigure HththE
    int dimTheta = paramopt->GetDimTheta();
-   if (HththE)
-   {
-     delete HththE;
-   } 
    mfem::Vector diag(dimTheta); diag = 1.0;
-   HththE = GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsTheta(), diag);
+   HththE.reset(GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsTheta(), diag));
 }
 
 double ObstacleDesignProblem::E(const mfem::Vector &U, int &eval_err)
@@ -480,6 +406,6 @@ void ObstacleDesignProblem::DthE(const mfem::Vector &u, const mfem::Vector &p, c
 
 mfem::Operator * ObstacleDesignProblem::DththE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta)
 {
-   return HththE;
+   return HththE.get();
 }
 

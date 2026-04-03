@@ -15,20 +15,20 @@ protected:
   mfem::Array<int> constraint_blockoffsets; // offsets for constraints which have sizes like (u, p, s, z)
 
   double compl_reg_const = 1.e-2; // complementarity regularization 
-  mfem::HypreParMatrix * DsPhi = nullptr;
-  mfem::HypreParMatrix * DzPhi = nullptr;
-  mfem::HypreParMatrix * constraintJacobian = nullptr;
+  std::unique_ptr<mfem::HypreParMatrix> DsPhi;
+  std::unique_ptr<mfem::HypreParMatrix> DzPhi;
+  std::unique_ptr<mfem::HypreParMatrix> constraintJacobian;
 
   // Hessian energy
-  mfem::HypreParMatrix * HE = nullptr; 
+  std::unique_ptr<mfem::HypreParMatrix> HE; 
 
   // Hessian blocks (energy)
-  mfem::HypreParMatrix * HuuE = nullptr;
-  mfem::HypreParMatrix * HupE = nullptr;
-  mfem::HypreParMatrix * HuthE = nullptr;
-  mfem::HypreParMatrix * HppE = nullptr;
-  mfem::HypreParMatrix * HpthE = nullptr;
-  mfem::HypreParMatrix * HththE = nullptr;
+  std::unique_ptr<mfem::HypreParMatrix> HuuE;
+  std::unique_ptr<mfem::HypreParMatrix> HupE;
+  std::unique_ptr<mfem::HypreParMatrix> HuthE;
+  std::unique_ptr<mfem::HypreParMatrix> HppE;
+  std::unique_ptr<mfem::HypreParMatrix> HpthE;
+  std::unique_ptr<mfem::HypreParMatrix> HththE;
 public:
   MPECProblem(ParamOptProblem * paramopt_);
   void RegularizedComplementarity(const mfem::Vector& s, const mfem::Vector& z, 
