@@ -111,13 +111,50 @@ int main(int argc, char *argv[])
 
    // define obstacle design problem
    ObstacleDesignProblem designproblem(&problem);
+   designproblem.SetRegularizationConst(1.e-6);
    int dimDesign = designproblem.GetDimU();
+   int dimConstraints = designproblem.GetDimC();
+   std::cout << "number of design variables = " << dimDesign << std::endl;
+   std::cout << "number of constriants (design problem) = " << dimConstraints << std::endl;
+
+
    mfem::Vector U0(dimDesign);
    mfem::Vector Uf(dimDesign);
    InteriorPointSolver designoptimizer(&designproblem); 
    designoptimizer.SetTol(1.e-8);
    designoptimizer.SetMaxIter(maxIPMiters);
    designoptimizer.Mult(U0, Uf);
+   
+   mfem::Vector uf(Uf, 0, dimU);
+   mfem::Vector pf(Uf, dimU, dimU);
+   mfem::Vector thf(Uf, 2*dimU, dimU);
+   mfem::Vector sf(Uf, 3*dimU, dimU);
+   mfem::Vector zf(Uf, 4*dimU, dimU);
+   mfem::ParGridFunction u_gf(Vh);
+   u_gf.SetFromTrueDofs(uf);
+   mfem::ParGridFunction p_gf(Vh);
+   p_gf.SetFromTrueDofs(pf);
+   mfem::ParGridFunction th_gf(Vh);
+   th_gf.SetFromTrueDofs(thf);
+   mfem::ParGridFunction s_gf(Vh);
+   s_gf.SetFromTrueDofs(sf);
+   mfem::ParGridFunction z_gf(Vh);
+   z_gf.SetFromTrueDofs(zf);
+
+   // 17. Save data in the ParaView format
+   mfem::ParaViewDataCollection paraview_dc2("ObstacleDesign", &pmesh);
+   paraview_dc2.SetPrefixPath("ParaView");
+   paraview_dc2.SetLevelsOfDetail(FEorder);
+   paraview_dc2.SetDataFormat(mfem::VTKFormat::BINARY);
+   paraview_dc2.SetHighOrderOutput(true);
+   paraview_dc2.SetCycle(0);
+   paraview_dc2.SetTime(0.0);
+   paraview_dc2.RegisterField("displacement", &u_gf);
+   paraview_dc2.RegisterField("pressure", &p_gf);
+   paraview_dc2.RegisterField("obstacle", &th_gf);
+   paraview_dc2.RegisterField("slacks", &s_gf);
+   paraview_dc2.RegisterField("dual slacks", &z_gf);
+   paraview_dc2.Save();
    
 
 
@@ -141,5 +178,5 @@ double fRhs(const mfem::Vector &x)
 
 double flat_obstacle(const mfem::Vector &x)
 {
-  return 0.2;
+  return 0.0;
 }
