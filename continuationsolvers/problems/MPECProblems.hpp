@@ -58,7 +58,7 @@ public:
   mfem::Operator * DddE(const mfem::Vector & U) override;
   void g(const mfem::Vector &U, mfem::Vector &gU, int & eval_err) override;
   mfem::Operator * Ddg(const mfem::Vector &U) override; 
-  // TODO: include destructor 
+  virtual ~MPECProblem();
 };
 
 

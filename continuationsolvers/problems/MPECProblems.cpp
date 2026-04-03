@@ -3,12 +3,12 @@
 
 /* MPEC:
   constraints coming from a parametrized optimization problem
-  \min_u E(u, th), s.t., g(u, th) >= 0
+  \min_u E = E(u, th), s.t., g(u, th) >= 0
   optimality conditions
   L(u, p, th, s, z) = E - p^T(g - s) - z^T s
   grad_u L = grad_u E - (grad_u g)^T p = 0
-  grad_s L = p - z                     = 0
              g - s                     = 0
+  grad_s L = p - z                     = 0
             \Phi(s, z)                 = 0
   U = (u, p, th, s, z)
 
@@ -400,6 +400,50 @@ mfem::Operator * MPECProblem::Ddg(const mfem::Vector &U)
    delete negIdent;
    
    return constraintJacobian;
+}
+
+MPECProblem::~MPECProblem()
+{
+   if(!HE)
+   {
+      delete HE;
+   }
+   if (!HuuE)
+   {
+      delete HuuE;
+   }
+   if (!HupE)
+   {
+      delete HupE;
+   }
+   if (!HuthE)
+   {
+      delete HuthE;
+   }
+   if (!HppE)
+   {
+      delete HppE;
+   }
+   if (!HpthE)
+   {
+      delete HpthE;
+   }
+   if (!HththE)
+   {
+      delete HththE;
+   }
+   if (!DsPhi)
+   {
+      delete DsPhi;
+   }
+   if (!DzPhi)
+   {
+      delete DzPhi;
+   }
+   if (!constraintJacobian)
+   {
+      delete constraintJacobian;
+   }
 }
 
 
