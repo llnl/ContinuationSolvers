@@ -16,10 +16,15 @@
 #include <iostream>
 #include "../continuationsolvers/problems/ObstacleProblems.hpp"
 #include "../continuationsolvers/solvers/IPSolver.hpp"
+#include "../continuationsolvers/problems/MPECProblems.hpp"
+
 
 double dmanufacturedFun(const mfem::Vector &x);
 double fRhs(const mfem::Vector &x);
 double flat_obstacle(const mfem::Vector &x);
+
+
+
 
 int main(int argc, char *argv[])
 {
@@ -102,7 +107,17 @@ int main(int argc, char *argv[])
    paraview_dc.RegisterField("displacement", &d_gf);
    paraview_dc.RegisterField("displacement (manufactured)", &dm_gf);
    paraview_dc.Save();
+   
 
+   // define obstacle design problem
+   ObstacleDesignProblem designproblem(&problem);
+   int dimDesign = designproblem.GetDimU();
+   mfem::Vector U0(dimDesign);
+   mfem::Vector Uf(dimDesign);
+   InteriorPointSolver designoptimizer(&designproblem); 
+   designoptimizer.SetTol(1.e-8);
+   designoptimizer.SetMaxIter(maxIPMiters);
+   designoptimizer.Mult(U0, Uf);
    
 
 

@@ -214,7 +214,27 @@ mfem::Operator * MPECProblem::DddE(const mfem::Vector &U)
    blockmat(2, 0) = Hthu;
    blockmat(2, 1) = Hthp;
    blockmat(2, 2) = Hthth;
+
+
+   // the following is adding some zero matrices with appropriate sizes to ensure the monolithic Hessian is of
+   // the expected size
+   int nentries = 0;
+   // Hus
+   auto tempus = new mfem::SparseMatrix(paramopt->GetDimU(), paramopt->GetDimMGlb(), nentries);
+   auto Hus = GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsM(), tempus);
+   delete tempus;
+   auto tempsu = new mfem::SparseMatrix(paramopt->GetDimM(), paramopt->GetDimUGlb(), nentries);
+   auto Hsu = GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsM(), paramopt->GetDofOffsetsU(), tempsu);
+   delete tempsu;
    
+
+   blockmat(0, 3) = Hus;
+   blockmat(0, 4) = Hus;
+   blockmat(3, 0) = Hsu;
+   blockmat(4, 0) = Hsu;
+   // end adding in the zero matrix blocks   
+
+
    if (HE)
    {
       delete HE;
@@ -222,11 +242,16 @@ mfem::Operator * MPECProblem::DddE(const mfem::Vector &U)
    }
    HE = HypreParMatrixFromBlocks(blockmat);
 
+   MFEM_VERIFY(HE->Width() == dimU, "size issue");
+   MFEM_VERIFY(HE->Height() == dimU, "size issue");
+
 
 
    delete Hpu;
    delete Hthu;
    delete Hthp;
+   delete Hus;
+   delete Hsu;
    return HE;
 }
 
@@ -382,3 +407,35 @@ mfem::Operator * MPECProblem::Ddg(const mfem::Vector &U)
    
    return constraintJacobian;
 }
+
+
+ObstacleDesignProblem::ObstacleDesignProblem(ParamOptProblem *paramopt_) : 
+                                       MPECProblem(paramopt_)
+{
+   // reconfigure HththE
+   int dimTheta = paramopt->GetDimTheta();
+   if (HththE)
+   {
+     delete HththE;
+   } 
+   mfem::Vector diag(dimTheta); diag = 1.0;
+   HththE = GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsTheta(), diag);
+}
+
+
+double ObstacleDesignProblem::E(const mfem::Vector & u, const mfem::Vector &p, const mfem::Vector & theta, int & eval_err)
+{
+  eval_err = 0;
+  return 0.5 * InnerProduct(MPI_COMM_WORLD, theta, theta);
+}
+
+void ObstacleDesignProblem::DthE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta, mfem::Vector& gradE)
+{
+   gradE.Set(1.0, theta);
+}
+
+mfem::Operator * ObstacleDesignProblem::DththE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta)
+{
+   return HththE;
+}
+

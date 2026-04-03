@@ -56,11 +56,18 @@ public:
   virtual mfem::Operator * DpthE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta);
   virtual mfem::Operator * DththE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta);
   mfem::Operator * DddE(const mfem::Vector & U) override;
-  // TODO: include 1st and 2nd derivative callbacks for energy
   void g(const mfem::Vector &U, mfem::Vector &gU, int & eval_err) override;
-  mfem::Operator * Ddg(const mfem::Vector &U) override;  
+  mfem::Operator * Ddg(const mfem::Vector &U) override; 
+  // TODO: include destructor 
 };
 
 
-
+class ObstacleDesignProblem : public MPECProblem
+{
+public:
+  ObstacleDesignProblem(ParamOptProblem * paramopt_);
+  double E(const mfem::Vector & u, const mfem::Vector &p, const mfem::Vector & theta, int & eval_err) override;
+  void DthE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta, mfem::Vector& gradE) override;
+  mfem::Operator * DththE(const mfem::Vector &u, const mfem::Vector &p, const mfem::Vector & theta) override;
+};
 #endif //MPECPROBLEM_DEFS
