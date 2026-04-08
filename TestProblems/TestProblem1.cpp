@@ -15,9 +15,9 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "../problems/Problems.hpp"
-#include "../solvers/HomotopySolver.hpp"
-#include "../utilities.hpp"
+#include "../continuationsolvers/problems/Problems.hpp"
+#include "../continuationsolvers/solvers/HomotopySolver.hpp"
+#include "../continuationsolvers/utilities.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -88,19 +88,7 @@ int main(int argc, char *argv[])
 		   "Tolerance for NMCP solver.");
    args.AddOption(&nmcpSolverMaxIter, "-nmcpmaxiter", "--nmcp-maxiter",
                   "Maximum number of iterations for the NMCP solver.");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (iAmRoot)
-      {
-          args.PrintUsage(cout);
-      }
-      return 1;
-   }
-   if (iAmRoot)
-   {
-      args.PrintOptions(cout);
-   }
+   args.ParseCheck();
 
 
 
@@ -202,10 +190,7 @@ Ex1Problem::Ex1Problem(int n, bool constraints_) : GeneralNLMCProblem(),
   }
   else
   {
-     int nentries = 0;
-     SparseMatrix * tempSparse = new SparseMatrix(dimx, dimyglb, nentries);
-     dFdy = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsx, dofOffsetsy, tempSparse);
-     delete tempSparse;
+     dFdy = GenerateNullHypreParMatrix(dofOffsetsx, dofOffsetsy);
   }
 
   temp = -1.0;
@@ -215,10 +200,7 @@ Ex1Problem::Ex1Problem(int n, bool constraints_) : GeneralNLMCProblem(),
   }
   else
   {
-     int nentries = 0;
-     SparseMatrix * tempSparse = new SparseMatrix(dimy, dimxglb, nentries);
-     dQdx = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsy, dofOffsetsx, tempSparse);
-     delete tempSparse;
+     dQdx = GenerateNullHypreParMatrix(dofOffsetsy, dofOffsetsx);
   }
   // random entries in [-1, 1]
   ul.SetSize(dimx); ul = 0.0;

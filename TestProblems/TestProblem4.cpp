@@ -83,20 +83,7 @@ int main(int argc, char *argv[])
         	   "Tolerance for NMCP solver.");
    args.AddOption(&nmcpSolverMaxIter, "-nmcpmaxiter", "--nmcp-maxiter",
                   "Maximum number of iterations for the NMCP solver.");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (iAmRoot)
-      {
-          args.PrintUsage(cout);
-      }
-      return 1;
-   }
-   if (iAmRoot)
-   {
-      args.PrintOptions(cout);
-   }
-
+   args.ParseCheck();
 
 
    Ex4Problem problem(n);
@@ -190,28 +177,13 @@ Ex4Problem::Ex4Problem(int n) : GeneralNLMCProblem()
   Init(constraintOffsets, dofOffsets);
 
   // dF / dx 0 x 0 matrix
-  {
-     int nentries = 0;
-     SparseMatrix * temp = new SparseMatrix(dimx, dimxglb, nentries);
-     dFdx = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsx, dofOffsetsx, temp);
-     delete temp;
-  }
+  dFdx = GenerateNullHypreParMatrix(dofOffsetsx, dofOffsetsx);
 
   // dF / dy 0 x dimy matrix
-  {
-     int nentries = 0;
-     SparseMatrix * temp = new SparseMatrix(dimx, dimyglb, nentries);
-     dFdy = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsx, dofOffsetsy, temp);
-     delete temp;
-  }
+  dFdy = GenerateNullHypreParMatrix(dofOffsetsx, dofOffsetsy);
 
   // dQ / dx dimy x 0 matrix
-  {
-     int nentries = 0;
-     SparseMatrix * temp = new SparseMatrix(dimy, dimxglb, nentries);
-     dQdx = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsy, dofOffsetsx, temp);
-     delete temp;
-  }
+  dQdx = GenerateNullHypreParMatrix(dofOffsetsy, dofOffsetsx);
 
   // dQ / dy = [ I   a ]
   //           [ a^T 0 ]

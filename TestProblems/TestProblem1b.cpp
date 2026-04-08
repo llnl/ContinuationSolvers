@@ -143,12 +143,7 @@ Ex1bProblem::Ex1bProblem(int n) : OptProblem(),
      d2Edu2 = GenerateHypreParMatrixFromDiagonal(dofOffsetsU, temp);
   }
   
-  {
-     int nentries = 0;
-     SparseMatrix * dgdusparse = new SparseMatrix(dimM, dimUglb, nentries);
-     dgdu = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsM, dofOffsetsU, dgdusparse);
-     delete dgdusparse;
-  }
+  dgdu = GenerateNullHypreParMatrix(dofOffsetsM, dofOffsetsU);
 }
 
 double Ex1bProblem::E(const Vector & u, int & eval_err)
