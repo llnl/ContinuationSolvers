@@ -76,6 +76,9 @@ mfem::HypreParMatrix * GenerateProjector(HYPRE_BigInt * reduced_offsets, HYPRE_B
   return Phypre;
 }
 
+
+
+
 mfem::HypreParMatrix * GenerateProjector(HYPRE_BigInt * reduced_offsets, HYPRE_BigInt * offsets, const mfem::HypreParVector & mask)
 {
   int n_cols_loc = offsets[1] - offsets[0];
@@ -304,4 +307,33 @@ void DirectSolver::Mult(const mfem::Vector &b, mfem::Vector &x) const
 {
    MFEM_VERIFY(solver, "SetOperator must be called before Mult!");
    solver->Mult(b, x);
+}
+
+
+mfem::HypreParMatrix * GenerateNullHypreParMatrix(HYPRE_BigInt * rowOffsets, HYPRE_BigInt * colOffsets)
+{
+  // sparse matrix with no entries, hence a null matrix
+  int nnz = 0; // local number of nonzeros
+  mfem::HypreParMatrix * A = nullptr;
+  
+  // local sizes of matrix based on offsets
+  HYPRE_Int m = 0, n = 0;
+  m = rowOffsets[1] - rowOffsets[0];
+  n = colOffsets[1] - colOffsets[0];
+  if (m < 0)
+  {
+     m = 0;
+  }
+  if (n < 0)
+  {
+     n = 0;
+  }
+  // determine global number of columns
+  HYPRE_Int N = 0;
+  MPI_Allreduce(&n, &N, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+  auto temp = std::unique_ptr<mfem::SparseMatrix>(new mfem::SparseMatrix(m, N, nnz));
+  
+  // generate HypreParMatrix from SparseMatrix
+  A = GenerateHypreParMatrixFromSparseMatrix(rowOffsets, colOffsets, temp.get());
+  return A;
 }

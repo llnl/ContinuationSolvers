@@ -15,6 +15,8 @@ mfem::HypreParMatrix * GenerateHypreParMatrixFromDiagonal(HYPRE_BigInt * offsets
 		mfem::Vector & diag);
 
 
+
+
 mfem::HypreParMatrix * GenerateProjector(HYPRE_BigInt * reduced_offsets, HYPRE_BigInt * offsets, HYPRE_Int * mask);
 
 mfem::HypreParMatrix * GenerateProjector(HYPRE_BigInt * reduced_offsets, HYPRE_BigInt * offsets, const mfem::HypreParVector & mask);
@@ -45,3 +47,7 @@ public:
 };
 
 #endif
+
+
+// generate a null HypreParMatrix with sizes give by input row/column offsets
+mfem::HypreParMatrix * GenerateNullHypreParMatrix(HYPRE_BigInt * rowOffsets, HYPRE_BigInt * colOffsets); 

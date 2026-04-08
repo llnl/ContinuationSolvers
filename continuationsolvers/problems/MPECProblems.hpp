@@ -29,6 +29,11 @@ protected:
   std::unique_ptr<mfem::HypreParMatrix> HppE;
   std::unique_ptr<mfem::HypreParMatrix> HpthE;
   std::unique_ptr<mfem::HypreParMatrix> HththE;
+
+  // Jacobian blocks
+  std::unique_ptr<mfem::HypreParMatrix> dg1ds; // d/ds(g(u, theta) - s) = -I
+  std::unique_ptr<mfem::HypreParMatrix> dg2dp; // d/dp(p - z) = I
+  std::unique_ptr<mfem::HypreParMatrix> dg2dz; // d/dz(p - z) = -I
 public:
   MPECProblem(ParamOptProblem * paramopt_);
   void RegularizedComplementarity(const mfem::Vector& s, const mfem::Vector& z, 

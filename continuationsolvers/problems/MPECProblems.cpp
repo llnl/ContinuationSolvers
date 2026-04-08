@@ -53,31 +53,24 @@ MPECProblem::MPECProblem(ParamOptProblem *paramopt_) :
 
 
   // default assignement for Hessian blocks
-  int nentries = 0;
-  {
-     auto temp = std::unique_ptr<mfem::SparseMatrix>(new mfem::SparseMatrix(paramopt->GetDimU(), paramopt->GetDimUGlb(), nentries));
-     HuuE.reset(GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsU(), temp.get()));
-  }
-  {
-     auto temp = std::unique_ptr<mfem::SparseMatrix>(new mfem::SparseMatrix(paramopt->GetDimU(), paramopt->GetDimMGlb(), nentries));
-     HupE.reset(GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsM(), temp.get()));
-  }
-  {
-     auto temp = std::unique_ptr<mfem::SparseMatrix>(new mfem::SparseMatrix(paramopt->GetDimU(), paramopt->GetDimThetaGlb(), nentries));
-     HuthE.reset(GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsTheta(), temp.get()));
-  }
-  {
-     auto temp = std::unique_ptr<mfem::SparseMatrix>(new mfem::SparseMatrix(paramopt->GetDimM(), paramopt->GetDimMGlb(), nentries));
-     HppE.reset(GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsM(), paramopt->GetDofOffsetsM(), temp.get()));
-  }
-  {
-     auto temp = std::unique_ptr<mfem::SparseMatrix>(new mfem::SparseMatrix(paramopt->GetDimM(), paramopt->GetDimThetaGlb(), nentries));
-     HpthE.reset(GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsM(), paramopt->GetDofOffsetsTheta(), temp.get()));
-  }
-  {
-     auto temp = std::unique_ptr<mfem::SparseMatrix>(new mfem::SparseMatrix(paramopt->GetDimTheta(), paramopt->GetDimThetaGlb(), nentries));
-     HththE.reset(GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsTheta(), paramopt->GetDofOffsetsTheta(), temp.get()));
-  }
+  HuuE.reset(GenerateNullHypreParMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsU()));
+  HupE.reset(GenerateNullHypreParMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsM()));
+  HuthE.reset(GenerateNullHypreParMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsTheta()));
+  HppE.reset(GenerateNullHypreParMatrix(paramopt->GetDofOffsetsM(), paramopt->GetDofOffsetsM()));
+  HpthE.reset(GenerateNullHypreParMatrix(paramopt->GetDofOffsetsM(), paramopt->GetDofOffsetsTheta()));
+  HththE.reset(GenerateNullHypreParMatrix(paramopt->GetDofOffsetsTheta(), paramopt->GetDofOffsetsTheta()));
+   
+  // Jacobian blocks
+  mfem::Vector diag(paramopt->GetDimM()); diag = 0.0;
+
+  diag = -1.0;
+  dg1ds.reset(GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsM(), diag));
+  
+  diag = 1.0;
+  dg2dp.reset(GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsM(), diag));
+  
+  diag = -1.0;
+  dg2dz.reset(GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsM(), diag));
 }
 
 double MPECProblem::E(const mfem::Vector &U, int &eval_err)
@@ -186,10 +179,10 @@ mfem::Operator * MPECProblem::DddE(const mfem::Vector &U)
    Hthp.reset(Hpth->Transpose());
    
    // build the monolithic HypreParMatrix Jacobian
-   mfem::Array2D<const mfem::HypreParMatrix *> blockmat(5, 5);
-   for (int i = 0; i < 5; i++)
+   mfem::Array2D<const mfem::HypreParMatrix *> blockmat(primal_blockoffsets.Size() - 1, primal_blockoffsets.Size() - 1);
+   for (int i = 0; i < blockmat.NumRows(); i++)
    {
-      for (int j = 0; j < 5; j++)
+      for (int j = 0; j < blockmat.NumCols(); j++)
       {
         blockmat(i, j) = nullptr;
       }
@@ -210,15 +203,10 @@ mfem::Operator * MPECProblem::DddE(const mfem::Vector &U)
    int nentries = 0;
    // Hus
    std::unique_ptr<mfem::HypreParMatrix> Hus;
-   {
-      auto temp = std::unique_ptr<mfem::SparseMatrix>(new mfem::SparseMatrix(paramopt->GetDimU(), paramopt->GetDimMGlb(), nentries));
-      Hus.reset(GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsM(), temp.get()));
-   }
+   Hus.reset(GenerateNullHypreParMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsM()));
    std::unique_ptr<mfem::HypreParMatrix> Hsu;
-   {
-      auto temp = std::unique_ptr<mfem::SparseMatrix>(new mfem::SparseMatrix(paramopt->GetDimM(), paramopt->GetDimUGlb(), nentries));
-      Hsu.reset(GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsM(), paramopt->GetDofOffsetsU(), temp.get()));
-   }
+   Hsu.reset(GenerateNullHypreParMatrix(paramopt->GetDofOffsetsM(), paramopt->GetDofOffsetsU()));
+   // dim(s) = dim(z) so we can reuse certain blocks
    blockmat(0, 3) = Hus.get();
    blockmat(0, 4) = Hus.get();
    blockmat(3, 0) = Hsu.get();
@@ -318,56 +306,37 @@ mfem::Operator * MPECProblem::Ddg(const mfem::Vector &U)
    MFEM_VERIFY(hessddE, "cast issue");
    MFEM_VERIFY(hessdthE, "cast issue");
    
-   mfem::HypreParMatrix * jacdgT = jacdg->Transpose();
+   std::unique_ptr<mfem::HypreParMatrix> jacdgT;
+   jacdgT.reset(jacdg->Transpose());
    mfem::Vector scale(jacdgT->Height()); scale = -1.0;
    jacdgT->ScaleRows(scale);
 
-   // construct diagonal blocks
-   mfem::HypreParMatrix * Ident;
-   mfem::HypreParMatrix * negIdent;
-
-   scale = 1.0;
-   Ident = GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsM(), scale);
-   scale = -1.0;
-   negIdent = GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsM(), scale);
- 
    // after these calls the member variables DsPhi and Dzphi will be available for use
    auto temp1 = DsRegularizedComplementarity(Ublk.GetBlock(3), Ublk.GetBlock(4), compl_reg_const);
    auto temp2 = DzRegularizedComplementarity(Ublk.GetBlock(3), Ublk.GetBlock(4), compl_reg_const);
 
 
    // build the monolithic HypreParMatrix Jacobian
-   //int nentries = 0;
-   //auto tempsu = new mfem::SparseMatrix(paramopt->GetDimM(), paramopt->GetDimUGlb(), nentries);
-   //auto Hsu = GenerateHypreParMatrixFromSparseMatrix(paramopt->GetDofOffsetsM(), paramopt->GetDofOffsetsU(), tempsu);
-   //delete tempsu;
-   mfem::Array2D<const mfem::HypreParMatrix *> blockmat(4, 5);
+   mfem::Array2D<const mfem::HypreParMatrix *> blockmat(constraint_blockoffsets.Size() - 1, primal_blockoffsets.Size() - 1);
+   for (int i = 0; i < blockmat.NumRows(); i++)
+   {
+      for (int j = 0; j < blockmat.NumCols(); j++)
+      {
+         blockmat(i, j) = nullptr;
+      }
+   }
    blockmat(0, 0) = hessddE; // should be Hessian of Lagrangian and not just of energy
-   blockmat(0, 1) = jacdgT;
+   blockmat(0, 1) = jacdgT.get();
    blockmat(0, 2) = hessdthE; // should be Hessian of Lagrangian and not just of energy
-   blockmat(0, 3) = nullptr; 
-   blockmat(0, 4) = nullptr; 
    blockmat(1, 0) = jacdg;
-   blockmat(1, 1) = nullptr;
    blockmat(1, 2) = jacthg;
-   blockmat(1, 3) = negIdent; // g(u, \theta) - s
-   blockmat(1, 4) = nullptr;
-   blockmat(2, 0) = nullptr;
-   blockmat(2, 1) = Ident; // p - z
-   blockmat(2, 2) = nullptr;
-   blockmat(2, 3) = nullptr;
-   blockmat(2, 4) = negIdent;
-   blockmat(3, 0) = nullptr;
-   blockmat(3, 1) = nullptr;
-   blockmat(3, 2) = nullptr;
+   blockmat(1, 3) = dg1ds.get(); // d/ds (g(u, \theta) - s)
+   blockmat(2, 1) = dg2dp.get(); // d/dp (p - z)
+   blockmat(2, 4) = dg2dz.get(); // d/dz (p - z)
    blockmat(3, 3) = DsPhi.get();
    blockmat(3, 4) = DzPhi.get();
    
    constraintJacobian.reset(HypreParMatrixFromBlocks(blockmat));
-
-   delete jacdgT;
-   delete Ident;
-   delete negIdent;
    
    return constraintJacobian.get();
 }
