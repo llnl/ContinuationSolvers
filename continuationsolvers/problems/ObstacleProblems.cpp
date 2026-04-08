@@ -167,7 +167,10 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
    mfem::FunctionCoefficient theta_fc(obstacleSource);
    mfem::ParGridFunction theta_gf(Vh);
    theta_gf.ProjectCoefficient(theta_fc);
-   InitTheta(*theta_gf.GetTrueDofs());
+   theta_gf.GetTrueDofs(theta_default);
+   mfem::Vector theta_default_copy(dimU);
+   theta_default_copy.Set(1.0, theta_default);
+   InitTheta(theta_default_copy);
    
    mfem::Vector iDiag(dimU); iDiag = 1.0;
    Jd = GenerateHypreParMatrixFromDiagonal(dofOffsetsU, iDiag);
@@ -178,11 +181,10 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
    {
       // sparse matrices with no entries, hence a null matrix
       int nentries = 0;
-      auto temp = new mfem::SparseMatrix(dimU, dimUglb, nentries);
-      Hddgl = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsU, dofOffsetsU, temp);
-      Hthdgl = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsU, dofOffsetsU, temp);
-      HdthE = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsU, dofOffsetsU, temp);
-      delete temp;
+      mfem::SparseMatrix temp(dimU, dimUglb, nentries);
+      Hddgl = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsU, dofOffsetsU, &temp);
+      Hthdgl = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsU, dofOffsetsU, &temp);
+      HdthE = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsU, dofOffsetsU, &temp);
    }
 }
 
@@ -256,4 +258,5 @@ ParamObstacleProblem::~ParamObstacleProblem()
    delete Jth;
    delete Hddgl;
    delete Hthdgl;
+   delete HdthE;
 }

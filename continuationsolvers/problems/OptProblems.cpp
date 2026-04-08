@@ -403,6 +403,10 @@ void ParamOptProblem::InitTheta(const mfem::Vector & theta)
    MPI_Allreduce(&dimTheta, &dimThetaglb, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
    theta_default.SetSize(dimTheta);
    theta_default.Set(1.0, theta);
+   if (!dofOffsetsTheta)
+   {
+      delete[] dofOffsetsTheta;
+   }
    dofOffsetsTheta = offsetsFromLocalSizes(dimTheta);  
    theta_initialized = true;
 }
@@ -450,4 +454,9 @@ mfem::Operator * ParamOptProblem::Dddgl(const mfem::Vector &d, const mfem::Vecto
 
 ParamOptProblem::~ParamOptProblem() 
 {
+   if (!dofOffsetsTheta)
+   {
+      delete[] dofOffsetsTheta;
+   }
+
 }
