@@ -14,25 +14,23 @@ ObstacleProblem::ObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
    Init(fesU_->GetTrueDofOffsets(), fesM_->GetTrueDofOffsets());
    
 
-   Kform = new mfem::ParBilinearForm(fesU_);
+   Kform.reset(new mfem::ParBilinearForm(fesU_));
    Kform->AddDomainIntegrator(new mfem::MassIntegrator);
    Kform->AddDomainIntegrator(new mfem::DiffusionIntegrator);
    Kform->Assemble();
    Kform->Finalize();
    Kform->FormSystemMatrix(ess_tdof_list, K);
    mfem::FunctionCoefficient fcoeff(fSource);
-   fform = new mfem::ParLinearForm(fesU_);
+   fform.reset(new mfem::ParLinearForm(fesU_));
    fform->AddDomainIntegrator(new mfem::DomainLFIntegrator(fcoeff));
    fform->Assemble();
-   mfem::Vector F(dimU);
-   fform->ParallelAssemble(F);
    f.SetSize(dimU);
-   f.Set(1.0, F);
+   fform->ParallelAssemble(f);
    psi.SetSize(dimU);
    psi = 0.0;
    
    mfem::Vector iDiag(dimU); iDiag = 1.0;
-   J = GenerateHypreParMatrixFromDiagonal(dofOffsetsU, iDiag);
+   J.reset(GenerateHypreParMatrixFromDiagonal(dofOffsetsU, iDiag));
 }
 
 // Obstacle Problem, essential boundary conditions enforced
@@ -46,20 +44,18 @@ ObstacleProblem::ObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
    Init(fesU_->GetTrueDofOffsets(), fesM_->GetTrueDofOffsets());
    // elastic energy functional terms	
    ess_tdof_list = tdof_list;
-   Kform = new mfem::ParBilinearForm(fesU_);
+   Kform.reset(new mfem::ParBilinearForm(fesU_));
    Kform->AddDomainIntegrator(new mfem::DiffusionIntegrator);
    Kform->Assemble();
    Kform->Finalize();
    Kform->FormSystemMatrix(ess_tdof_list, K);
 
    mfem::FunctionCoefficient fcoeff(fSource);
-   fform = new mfem::ParLinearForm(fesU_);
+   fform.reset(new mfem::ParLinearForm(fesU_));
    fform->AddDomainIntegrator(new mfem::DomainLFIntegrator(fcoeff));
    fform->Assemble();
-   mfem::Vector F(dimU);
-   fform->ParallelAssemble(F);
    f.SetSize(dimU);
-   f.Set(1.0, F);
+   fform->ParallelAssemble(f);
    Kform->EliminateVDofsInRHS(ess_tdof_list, xDC, f);
    
    // obstacle constraints --  
@@ -68,7 +64,7 @@ ObstacleProblem::ObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
    {
      iDiag(ess_tdof_list[i]) = 0.0;
    }
-   J = GenerateHypreParMatrixFromDiagonal(dofOffsetsU, iDiag);
+   J.reset(GenerateHypreParMatrixFromDiagonal(dofOffsetsU, iDiag));
 
    mfem::FunctionCoefficient psi_fc(obstacleSource);
    mfem::ParGridFunction psi_gf(fesU_);
@@ -125,14 +121,11 @@ void ObstacleProblem::g(const mfem::Vector &d, mfem::Vector &gd, int & eval_err)
 
 mfem::Operator * ObstacleProblem::Ddg(const mfem::Vector &d)
 {
-   return J;
+   return J.get();
 }
 
 ObstacleProblem::~ObstacleProblem()
 {
-   delete Kform;
-   delete fform;
-   delete J;
 }
 
 
@@ -146,20 +139,18 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
    Vh = fesU_;
    Init(Vh->GetTrueDofOffsets(), Vh->GetTrueDofOffsets());
    
-   Kform = new mfem::ParBilinearForm(Vh);
+   Kform.reset(new mfem::ParBilinearForm(Vh));
    Kform->AddDomainIntegrator(new mfem::MassIntegrator);
    Kform->AddDomainIntegrator(new mfem::DiffusionIntegrator);
    Kform->Assemble();
    Kform->Finalize();
    Kform->FormSystemMatrix(ess_tdof_list, K);
    mfem::FunctionCoefficient fcoeff(fSource);
-   fform = new mfem::ParLinearForm(Vh);
+   fform.reset(new mfem::ParLinearForm(Vh));
    fform->AddDomainIntegrator(new mfem::DomainLFIntegrator(fcoeff));
    fform->Assemble();
-   mfem::Vector F(dimU);
-   fform->ParallelAssemble(F);
    f.SetSize(dimU);
-   f.Set(1.0, F);
+   fform->ParallelAssemble(f);
 
    // provided obstacle will be default param value
    theta_default.SetSize(dimU);
@@ -173,19 +164,13 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
    InitTheta(theta_default_copy);
    
    mfem::Vector iDiag(dimU); iDiag = 1.0;
-   Jd = GenerateHypreParMatrixFromDiagonal(dofOffsetsU, iDiag);
+   Jd.reset(GenerateHypreParMatrixFromDiagonal(dofOffsetsU, iDiag));
    iDiag = -1.0;
-   Jth = GenerateHypreParMatrixFromDiagonal(dofOffsetsU, iDiag);
+   Jth.reset(GenerateHypreParMatrixFromDiagonal(dofOffsetsU, iDiag));
 
-
-   {
-      // sparse matrices with no entries, hence a null matrix
-      int nentries = 0;
-      mfem::SparseMatrix temp(dimU, dimUglb, nentries);
-      Hddgl = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsU, dofOffsetsU, &temp);
-      Hthdgl = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsU, dofOffsetsU, &temp);
-      HdthE = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsU, dofOffsetsU, &temp);
-   }
+   Hddgl.reset(GenerateNullHypreParMatrix(dofOffsetsU, dofOffsetsU));
+   Hthdgl.reset(GenerateNullHypreParMatrix(dofOffsetsU, dofOffsetsU));
+   HdthE.reset(GenerateNullHypreParMatrix(dofOffsetsU, dofOffsetsU));
 }
 
 double ParamObstacleProblem::E(const mfem::Vector &d, const mfem::Vector & theta, int & eval_err)
@@ -214,7 +199,7 @@ mfem::Operator * ParamObstacleProblem::DddE(const mfem::Vector &d, const mfem::V
 
 mfem::Operator * ParamObstacleProblem::DdthE(const mfem::Vector & d, const mfem::Vector &theta)
 {
-  return HdthE;
+  return HdthE.get();
 }
 
 
@@ -231,32 +216,25 @@ void ParamObstacleProblem::g(const mfem::Vector &d, const mfem::Vector & theta, 
 
 mfem::Operator * ParamObstacleProblem::Ddg(const mfem::Vector &d, const mfem::Vector & theta)
 {
-   return Jd;
+   return Jd.get();
 }
 
 mfem::Operator * ParamObstacleProblem::Dthg(const mfem::Vector &d, const mfem::Vector & theta)
 {
-   return Jth;
+   return Jth.get();
 }
 
 mfem::Operator * ParamObstacleProblem::Dddgl(const mfem::Vector &d, const mfem::Vector &l, const mfem::Vector & theta)
 {
-   return Hddgl;
+   return Hddgl.get();
 }
 
 mfem::Operator * ParamObstacleProblem::Dthdgl(const mfem::Vector &d, const mfem::Vector &l, const mfem::Vector & theta)
 {
-   return Hthdgl;
+   return Hthdgl.get();
 }
 
 
 ParamObstacleProblem::~ParamObstacleProblem()
 {
-   delete Kform;
-   delete fform;
-   delete Jd;
-   delete Jth;
-   delete Hddgl;
-   delete Hthdgl;
-   delete HdthE;
 }

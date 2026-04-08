@@ -200,7 +200,6 @@ mfem::Operator * MPECProblem::DddE(const mfem::Vector &U)
 
    // the following is adding some zero matrices with appropriate sizes to ensure the monolithic Hessian is of
    // the expected size
-   int nentries = 0;
    // Hus
    std::unique_ptr<mfem::HypreParMatrix> Hus;
    Hus.reset(GenerateNullHypreParMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsM()));

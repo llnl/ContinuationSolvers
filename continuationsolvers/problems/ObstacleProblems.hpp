@@ -10,11 +10,11 @@ class ObstacleProblem : public OptProblem
 protected:
    // data to define energy objective function e(d) = 0.5 d^T K d - f^T d, g(d) = d >= \psi
    // stiffness matrix used to define objective
-   mfem::ParBilinearForm *Kform = nullptr;
-   mfem::ParLinearForm   *fform = nullptr;
+   std::unique_ptr<mfem::ParBilinearForm> Kform;
+   std::unique_ptr<mfem::ParLinearForm>   fform;
    mfem::Array<int> ess_tdof_list; // needed for calls to FormSystemMatrix
    mfem::HypreParMatrix  K;
-   mfem::HypreParMatrix* J = nullptr;
+   std::unique_ptr<mfem::HypreParMatrix> J;
    mfem::ParFiniteElementSpace* Vh = nullptr;
    mfem::Vector f;
    mfem::Vector psi;
@@ -35,15 +35,15 @@ class ParamObstacleProblem : public ParamOptProblem
 protected:
    // data to define energy objective function e(d, \theta) = 0.5 d^T K d - f^T d, g(d, \theta) = d - \theta >= 0
    // stiffness matrix used to define objective
-   mfem::ParBilinearForm *Kform = nullptr;
-   mfem::ParLinearForm   *fform = nullptr;
+   std::unique_ptr<mfem::ParBilinearForm> Kform;
+   std::unique_ptr<mfem::ParLinearForm> fform;
    mfem::Array<int> ess_tdof_list; // needed for calls to FormSystemMatrix
    mfem::HypreParMatrix  K;
-   mfem::HypreParMatrix* Jd = nullptr;
-   mfem::HypreParMatrix* Jth = nullptr;
-   mfem::HypreParMatrix* Hddgl = nullptr;  // Hessian of (gap^T Lagrange multiplier) D^2 / Dd^2
-   mfem::HypreParMatrix* Hthdgl = nullptr; // Hessian of (gap^T Lagrange multiplier) D^2 / (Dth Dd)
-   mfem::HypreParMatrix* HdthE = nullptr; // mixed Hessian of (objective) D^2 / (Dd Dth)    
+   std::unique_ptr<mfem::HypreParMatrix> Jd;
+   std::unique_ptr<mfem::HypreParMatrix> Jth;
+   std::unique_ptr<mfem::HypreParMatrix> Hddgl;  // Hessian of (gap^T Lagrange multiplier) D^2 / Dd^2
+   std::unique_ptr<mfem::HypreParMatrix> Hthdgl; // Hessian of (gap^T Lagrange multiplier) D^2 / (Dth Dd)
+   std::unique_ptr<mfem::HypreParMatrix> HdthE; // mixed Hessian of (objective) D^2 / (Dd Dth)    
    mfem::ParFiniteElementSpace* Vh = nullptr;
    mfem::Vector f;
 public :
