@@ -9,8 +9,8 @@ InteriorPointSolver::InteriorPointSolver(GeneralOptProblem * problem_)
                      : problem(problem_), 
                        block_offsetsumlz(5), block_offsetsuml(4), block_offsetsx(3),
                        Huu(nullptr), Hum(nullptr), Hmu(nullptr), 
-                       Hmm(nullptr), Wmm(nullptr), D(nullptr), 
-                       Ju(nullptr), Jm(nullptr), JuT(nullptr), JmT(nullptr), linSolver(nullptr), 
+                       Hmm(nullptr), Wmm(nullptr),  
+                       Ju(nullptr), Jm(nullptr), linSolver(nullptr), 
                        saveLogBarrierIterates(false)
 {
    OptTol  = 1.e-2;
@@ -359,7 +359,9 @@ void InteriorPointSolver::FormIPNewtonMat(mfem::BlockVector & x, mfem::Vector & 
    auto Hmmf = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmmf(x));
    if (!fullLagrangianHessian)
    {
-     Huu = Huuf;
+     //mfem::Vector duu(dimU); duu = 1.e-4;
+     //auto Duu = GenerateHypreParMatrixFromDiagonal(problem->GetDofOffsetsU(), duu);
+     Huu = Huuf;//ParAdd(Huuf, Duu);
      Hum = Humf;
      Hmu = Hmuf;
      Hmm = Hmmf;
@@ -373,27 +375,27 @@ void InteriorPointSolver::FormIPNewtonMat(mfem::BlockVector & x, mfem::Vector & 
       DiagLogBar(ii) = zl(ii) / (x(ii+dimU) - ml(ii));
    }
 
-   D = GenerateHypreParMatrixFromDiagonal(problem->GetDofOffsetsM(), DiagLogBar);
+   D.reset(GenerateHypreParMatrixFromDiagonal(problem->GetDofOffsetsM(), DiagLogBar));
   
    if (Hmm)
    {
       Wmm = Hmm;
-      Wmm->Add(1.0, *D);
+      Wmm->Add(1.0, *(D.get()));
    }
    else
    {
-      Wmm = D;
+      Wmm = D.get();
    }
 
-   Ju = dynamic_cast<mfem::HypreParMatrix *>(problem->Duc(x)); JuT = Ju->Transpose();
-   Jm = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmc(x)); JmT = Jm->Transpose();
+   Ju = dynamic_cast<mfem::HypreParMatrix *>(problem->Duc(x)); JuT.reset(Ju->Transpose());
+   Jm = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmc(x)); JmT.reset(Jm->Transpose());
    //         IP-Newton system matrix
    //    Ak = [[H_(u,u)  H_(u,m)   J_u^T]
    //          [H_(m,u)  W_(m,m)   J_m^T]
    //          [ J_u      J_m       0  ]]
 
-   Ak.SetBlock(0, 0, Huu);                         Ak.SetBlock(0, 2, JuT);
-                           Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, JmT);
+   Ak.SetBlock(0, 0, Huu);                         Ak.SetBlock(0, 2, JuT.get());
+                           Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, JmT.get());
    Ak.SetBlock(2, 0,  Ju); Ak.SetBlock(2, 1,  Jm);
 
    if(Hum != nullptr) { Ak.SetBlock(0, 1, Hum); Ak.SetBlock(1, 0, Hmu); }
@@ -460,6 +462,20 @@ void InteriorPointSolver::IPNewtonSolve(mfem::BlockVector &x, mfem::Vector &l, m
       delete linSolver; linSolver = nullptr;
    }
 
+   if (checkLinearSysResiduals)
+   {
+      mfem::BlockVector residual(block_offsetsuml); residual = 0.0;
+      A.Mult(Xhat, residual);
+      residual.Add(-1.0, b);
+      double res_norm = mfem::GlobalLpNorm(2, residual.Norml2(), MPI_COMM_WORLD);
+      double relative_res_norm = res_norm / mfem::GlobalLpNorm(2, b.Norml2(), MPI_COMM_WORLD);
+      if (iAmRoot)
+      {
+         *ipout << "|| A x - b ||_2 = " << res_norm << "\n";
+         *ipout << "|| A x - b ||_2 / || b ||_2 = " << relative_res_norm << "\n";
+      }
+   }
+
    /* backsolve to determine zlhat */
    for(int ii = 0; ii < dimM; ii++)
    {
@@ -467,9 +483,6 @@ void InteriorPointSolver::IPNewtonSolve(mfem::BlockVector &x, mfem::Vector &l, m
    }
    
    // free memory
-   delete D;
-   delete JuT;
-   delete JmT;
    if(Hmm)
    {
       delete Wmm;

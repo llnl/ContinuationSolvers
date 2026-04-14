@@ -111,6 +111,7 @@ int main(int argc, char *argv[])
    InteriorPointSolver designoptimizer(&designproblem); 
    designoptimizer.SetTol(1.e-8);
    designoptimizer.SetMaxIter(maxIPMiters);
+   designoptimizer.CheckLinearSystemResiduals();
    designoptimizer.Mult(U0, Uf);
    
    mfem::Vector uf(Uf, 0, dimU);
