@@ -458,5 +458,4 @@ ParamOptProblem::~ParamOptProblem()
    {
       delete[] dofOffsetsTheta;
    }
-
 }

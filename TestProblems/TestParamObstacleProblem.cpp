@@ -99,7 +99,6 @@ int main(int argc, char *argv[])
 
    // define obstacle design problem
    ObstacleDesignProblem designproblem(&problem);
-   designproblem.SetRegularizationConst(1.e-6);
    int dimDesign = designproblem.GetDimU();
    int dimConstraints = designproblem.GetDimC();
    std::cout << "number of design variables = " << dimDesign << std::endl;
@@ -108,11 +107,6 @@ int main(int argc, char *argv[])
 
    mfem::Vector U0(dimDesign);
    mfem::Vector Uf(dimDesign);
-   InteriorPointSolver designoptimizer(&designproblem); 
-   designoptimizer.SetTol(1.e-8);
-   designoptimizer.SetMaxIter(maxIPMiters);
-   designoptimizer.CheckLinearSystemResiduals();
-   designoptimizer.Mult(U0, Uf);
    
    mfem::Vector uf(Uf, 0, dimU);
    mfem::Vector pf(Uf, dimU, dimU);
@@ -120,15 +114,10 @@ int main(int argc, char *argv[])
    mfem::Vector sf(Uf, 3*dimU, dimU);
    mfem::Vector zf(Uf, 4*dimU, dimU);
    mfem::ParGridFunction u_gf(Vh);
-   u_gf.SetFromTrueDofs(uf);
    mfem::ParGridFunction p_gf(Vh);
-   p_gf.SetFromTrueDofs(pf);
    mfem::ParGridFunction th_gf(Vh);
-   th_gf.SetFromTrueDofs(thf);
    mfem::ParGridFunction s_gf(Vh);
-   s_gf.SetFromTrueDofs(sf);
    mfem::ParGridFunction z_gf(Vh);
-   z_gf.SetFromTrueDofs(zf);
 
    // 17. Save data in the ParaView format
    mfem::ParaViewDataCollection paraview_dc2("ObstacleDesign", &pmesh);
@@ -136,14 +125,32 @@ int main(int argc, char *argv[])
    paraview_dc2.SetLevelsOfDetail(FEorder);
    paraview_dc2.SetDataFormat(mfem::VTKFormat::BINARY);
    paraview_dc2.SetHighOrderOutput(true);
-   paraview_dc2.SetCycle(0);
-   paraview_dc2.SetTime(0.0);
    paraview_dc2.RegisterField("displacement", &u_gf);
    paraview_dc2.RegisterField("pressure", &p_gf);
    paraview_dc2.RegisterField("obstacle", &th_gf);
    paraview_dc2.RegisterField("slacks", &s_gf);
    paraview_dc2.RegisterField("dual slacks", &z_gf);
-   paraview_dc2.Save();
+   
+   double reg_const = 1.e-2;
+   for (int i = 0; i < 4; i++)
+   {
+     reg_const *= 1.e-1;
+     designproblem.SetRegularizationConst(reg_const);
+     InteriorPointSolver designoptimizer(&designproblem); 
+     designoptimizer.SetTol(1.e-8);
+     designoptimizer.SetMaxIter(maxIPMiters);
+     designoptimizer.CheckLinearSystemResiduals();
+     designoptimizer.RegularizePrimalHessian();
+     designoptimizer.Mult(U0, Uf);
+     u_gf.SetFromTrueDofs(uf);
+     p_gf.SetFromTrueDofs(pf);
+     th_gf.SetFromTrueDofs(thf);
+     s_gf.SetFromTrueDofs(sf);
+     z_gf.SetFromTrueDofs(zf);
+     paraview_dc2.SetCycle(i);
+     paraview_dc2.SetTime((double) (i));
+     paraview_dc2.Save();
+   }
    
 
 

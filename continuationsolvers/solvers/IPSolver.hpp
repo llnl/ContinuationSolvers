@@ -32,9 +32,9 @@ protected:
     mfem::Array<int> block_offsetsumlz, block_offsetsuml, block_offsetsx;
     mfem::Vector ml;
 
-    mfem::HypreParMatrix * Huu, * Hum, * Hmu, * Hmm, * Wmm, * Ju, * Jm;
+    mfem::HypreParMatrix * Hum, * Hmu, * Hmm, * Wmm, * Ju, * Jm;
   
-    std::unique_ptr<mfem::HypreParMatrix> D, JuT, JmT; 
+    std::unique_ptr<mfem::HypreParMatrix> Huu, D, JuT, JmT; 
     mfem::Solver * linSolver; 
     int jOpt;
     bool converged;
@@ -55,6 +55,7 @@ protected:
 
     bool fullLagrangianHessian = false;
     bool checkLinearSysResiduals = false;
+    bool hessRegularization = false;
 public:
     InteriorPointSolver(GeneralOptProblem*);
     double MaxStepSize(mfem::Vector& , mfem::Vector& , mfem::Vector& , double);
@@ -98,6 +99,7 @@ public:
     };
     void SetLinearSolver(mfem::Solver &solver_) { linSolver = &(solver_); };
     void CheckLinearSystemResiduals() { checkLinearSysResiduals = true; };
+    void RegularizePrimalHessian() {  hessRegularization = true; };
     virtual ~InteriorPointSolver();
 };
 

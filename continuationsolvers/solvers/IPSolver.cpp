@@ -8,7 +8,7 @@
 InteriorPointSolver::InteriorPointSolver(GeneralOptProblem * problem_) 
                      : problem(problem_), 
                        block_offsetsumlz(5), block_offsetsuml(4), block_offsetsx(3),
-                       Huu(nullptr), Hum(nullptr), Hmu(nullptr), 
+                       Hum(nullptr), Hmu(nullptr), 
                        Hmm(nullptr), Wmm(nullptr),  
                        Ju(nullptr), Jm(nullptr), linSolver(nullptr), 
                        saveLogBarrierIterates(false)
@@ -359,9 +359,14 @@ void InteriorPointSolver::FormIPNewtonMat(mfem::BlockVector & x, mfem::Vector & 
    auto Hmmf = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmmf(x));
    if (!fullLagrangianHessian)
    {
-     //mfem::Vector duu(dimU); duu = 1.e-4;
-     //auto Duu = GenerateHypreParMatrixFromDiagonal(problem->GetDofOffsetsU(), duu);
-     Huu = Huuf;//ParAdd(Huuf, Duu);
+     mfem::Vector duu(dimU); duu = 0.0;
+     if (hessRegularization)
+     {
+       duu = 1.e-4;
+     }
+     std::unique_ptr<mfem::HypreParMatrix> Duu;
+     Duu.reset(GenerateHypreParMatrixFromDiagonal(problem->GetDofOffsetsU(), duu));
+     Huu.reset(ParAdd(Huuf, Duu.get()));
      Hum = Humf;
      Hmu = Hmuf;
      Hmm = Hmmf;
@@ -394,7 +399,7 @@ void InteriorPointSolver::FormIPNewtonMat(mfem::BlockVector & x, mfem::Vector & 
    //          [H_(m,u)  W_(m,m)   J_m^T]
    //          [ J_u      J_m       0  ]]
 
-   Ak.SetBlock(0, 0, Huu);                         Ak.SetBlock(0, 2, JuT.get());
+   Ak.SetBlock(0, 0, Huu.get());                   Ak.SetBlock(0, 2, JuT.get());
                            Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, JmT.get());
    Ak.SetBlock(2, 0,  Ju); Ak.SetBlock(2, 1,  Jm);
 
