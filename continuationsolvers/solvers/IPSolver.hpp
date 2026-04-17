@@ -2,8 +2,8 @@
 #include "../problems/OptProblems.hpp"
 
 
-#ifndef PARIPSOLVER 
-#define PARIPSOLVER
+#ifndef IPSOLVER 
+#define IPSOLVER
 
 class InteriorPointSolver
 {
@@ -103,4 +103,4 @@ public:
     virtual ~InteriorPointSolver();
 };
 
-#endif
+#endif // IPSOLVER

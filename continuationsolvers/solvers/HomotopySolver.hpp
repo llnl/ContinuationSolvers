@@ -23,8 +23,8 @@ protected:
 
    // pointers to various HypreParMatrix
    // solver will not own these pointers
-   // memory management should be handled by 
-   // problem class 
+   // memory management is handled by 
+   // GeneralNLMCProblem 
    mfem::HypreParMatrix * dFdx = nullptr;
    mfem::HypreParMatrix * dFdy = nullptr;
    mfem::HypreParMatrix * dQdx = nullptr;
@@ -139,9 +139,9 @@ public:
    void SetPrintLevel(int print_level_) { print_level = print_level_; };
    void EnableSaveIterates()  { save_iterates = true; };
    void DisableSaveIterates() { save_iterates = false; };  
-   mfem::Array<mfem::Vector *> GetIterates() {return iterates;};
+   mfem::Array<mfem::Vector *> GetIterates() { return iterates; };
    virtual ~HomotopySolver();
 };
 
 
-#endif
+#endif //HomotopySOLVER
