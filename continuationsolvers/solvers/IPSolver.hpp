@@ -70,9 +70,9 @@ public:
   void lineSearch(mfem::BlockVector &, mfem::BlockVector &, double);
   void projectZ(const mfem::Vector &, mfem::Vector &, double);
   void filterCheck(double, double);
-  double E(const mfem::BlockVector &, const mfem::Vector &,
+  virtual double E(const mfem::BlockVector &, const mfem::Vector &,
            const mfem::Vector &, double, bool);
-  double E(const mfem::BlockVector &, const mfem::Vector &,
+  virtual double E(const mfem::BlockVector &, const mfem::Vector &,
            const mfem::Vector &, bool);
   bool GetConverged() const;
   double theta(const mfem::BlockVector &, int &);

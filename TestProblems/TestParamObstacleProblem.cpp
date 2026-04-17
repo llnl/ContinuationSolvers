@@ -16,6 +16,7 @@
 #include <iostream>
 #include "../continuationsolvers/problems/ObstacleProblems.hpp"
 #include "../continuationsolvers/solvers/IPSolver.hpp"
+#include "../continuationsolvers/solvers/MPECSolver.hpp"
 #include "../continuationsolvers/problems/MPECProblems.hpp"
 
 
@@ -132,7 +133,9 @@ int main(int argc, char *argv[])
    paraview_dc2.RegisterField("dual slacks", &z_gf);
    
    double reg_const = 1.e-2;
-   for (int i = 0; i < 4; i++)
+   int n_regdesign_problems = 4;
+   mfem::Array<int> outer_its(n_regdesign_problems);
+   for (int i = 0; i < n_regdesign_problems; i++)
    {
      reg_const *= 1.e-1;
      designproblem.SetRegularizationConst(reg_const);
@@ -142,6 +145,7 @@ int main(int argc, char *argv[])
      designoptimizer.CheckLinearSystemResiduals();
      designoptimizer.RegularizePrimalHessian();
      designoptimizer.Mult(U0, Uf);
+     designoptimizer.GetNumIterations(outer_its[i]); 
      u_gf.SetFromTrueDofs(uf);
      p_gf.SetFromTrueDofs(pf);
      th_gf.SetFromTrueDofs(thf);
@@ -150,8 +154,24 @@ int main(int argc, char *argv[])
      paraview_dc2.SetCycle(i);
      paraview_dc2.SetTime((double) (i));
      paraview_dc2.Save();
+     U0.Set(1.0, Uf);
    }
-   
+   if (!myid)
+   {
+     for (int i = 0; i < n_regdesign_problems; i++)
+     {
+       std::cout << "num of outer its = " << outer_its[i] << std::endl;    
+     }
+   }
+   {
+      U0 = 0.0;
+      MPECSolver designoptimizer(&designproblem);
+      designoptimizer.SetTol(1.e-4);
+      designoptimizer.SetMaxIter(maxIPMiters);
+      designoptimizer.CheckLinearSystemResiduals();
+      designoptimizer.RegularizePrimalHessian();
+      designoptimizer.Mult(U0, Uf);
+   }
 
 
    delete Vh;
