@@ -239,10 +239,8 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
         if (iAmRoot) {
           *ipout << "solved barrier subproblem, for mu = " << mu_k << std::endl;
         }
-        // A-3.1. Recompute the barrier parameteri
-        double mu_k_new =
-            std::max(OptTol / 10., std::min(kMu * mu_k, pow(mu_k, thetaMu)));
-        // mu_k  = max(OptTol / 10., min(kMu * mu_k, pow(mu_k, thetaMu)));
+        // A-3.1. Recompute the barrier parameter
+        double mu_k_new = UpdateBarrierParameter(mu_k);
         if (mu_k_new < muLogBarrierSol && !(savedLogBarrierSol)) {
           uLogBarrierSol.Set(1.0, xk.GetBlock(0));
           mLogBarrierSol.Set(1.0, xk.GetBlock(1));
@@ -394,6 +392,7 @@ void InteriorPointSolver::IPNewtonSolve(mfem::BlockVector &x, mfem::Vector &l,
                                         mfem::Vector &zl, mfem::Vector &zlhat,
                                         mfem::BlockVector &Xhat, double mu) {
   int nKrylovIts = -1;
+  mu_history.Append(mu_k);
   // solve A x = b, where A is the IP-Newton matrix
   mfem::BlockOperator A(block_offsetsuml, block_offsetsuml);
   mfem::BlockVector b(block_offsetsuml);
@@ -773,6 +772,11 @@ bool InteriorPointSolver::GetConverged() const { return converged; }
 void InteriorPointSolver::SetTol(double Tol) { OptTol = Tol; }
 
 void InteriorPointSolver::SetMaxIter(int max_it) { max_iter = max_it; }
+
+
+double InteriorPointSolver::UpdateBarrierParameter(double mu) {
+     return std::max(OptTol / 10., std::min(kMu * mu, pow(mu, thetaMu)));
+}
 
 void InteriorPointSolver::SetBarrierParameter(double mu_0) { mu_k = mu_0; }
 

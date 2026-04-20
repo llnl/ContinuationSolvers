@@ -55,6 +55,7 @@ protected:
   bool fullLagrangianHessian = false;
   bool checkLinearSysResiduals = false;
   bool hessRegularization = false;
+  mfem::Array<double> mu_history;
 
 public:
   InteriorPointSolver(GeneralOptProblem *);
@@ -87,6 +88,7 @@ public:
   void SetTol(double);
   void SetMaxIter(int);
   void SetBarrierParameter(double);
+  virtual double UpdateBarrierParameter(double);
   void GetNumIterations(int &);
   void SaveLogBarrierHessianIterates(bool);
   void SetLinearSolveTol(double);
@@ -103,6 +105,7 @@ public:
   void SetLinearSolver(mfem::Solver &solver_) { linSolver = &(solver_); };
   void CheckLinearSystemResiduals() { checkLinearSysResiduals = true; };
   void RegularizePrimalHessian() { hessRegularization = true; };
+  mfem::Array<double> GetMuHistory() { return mu_history; };
   virtual ~InteriorPointSolver();
 };
 

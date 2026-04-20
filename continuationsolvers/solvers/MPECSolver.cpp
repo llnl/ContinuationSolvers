@@ -16,6 +16,10 @@ double MPECSolver::E(const mfem::BlockVector &x, const mfem::Vector &l,
   return InteriorPointSolver::E(x, l, zl, mu_min, printEeval);
 }
 
+double MPECSolver::UpdateBarrierParameter(double mu) {
+   return std::max(OptTol / 10., mu / 10.);
+}
+
 MPECSolver::~MPECSolver()
 {
 }

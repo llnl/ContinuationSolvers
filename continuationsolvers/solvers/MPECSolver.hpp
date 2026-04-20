@@ -11,6 +11,7 @@ public:
   MPECSolver(MPECProblem *);
   double E(const mfem::BlockVector &, const mfem::Vector &,
            const mfem::Vector &, double, bool) override;
+  double UpdateBarrierParameter(double) override;
   virtual ~MPECSolver();
 };
 
