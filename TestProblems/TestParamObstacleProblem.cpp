@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
    paraview_dc2.RegisterField("dual slacks", &z_gf);
    
    double reg_const = 1.e-2;
-   int n_regdesign_problems = 4;
+   int n_regdesign_problems = 5;
    mfem::Array<int> outer_its(n_regdesign_problems);
    for (int i = 0; i < n_regdesign_problems; i++)
    {
@@ -166,11 +166,21 @@ int main(int argc, char *argv[])
    {
       U0 = 0.0;
       MPECSolver designoptimizer(&designproblem);
-      designoptimizer.SetTol(1.e-4);
+      designoptimizer.SetTol(1.e-8);
+      designoptimizer.SetBarrierParameter(1.e-3);
+      designoptimizer.SetKEps(1.e1);
       designoptimizer.SetMaxIter(maxIPMiters);
       designoptimizer.CheckLinearSystemResiduals();
       designoptimizer.RegularizePrimalHessian();
       designoptimizer.Mult(U0, Uf);
+      auto mu_history = designoptimizer.GetMuHistory();
+      if (!myid)
+      {
+         for (int i = 0; i < mu_history.Size(); i++)
+	 {
+	    std::cout << "mu_" << i << " = " << mu_history[i] << std::endl;
+	 }
+      }
    }
 
 

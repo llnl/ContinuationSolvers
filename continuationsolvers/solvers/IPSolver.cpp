@@ -334,10 +334,7 @@ void InteriorPointSolver::FormIPNewtonMat(mfem::BlockVector &x,
   auto Hmmf = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmmf(x));
   if (!fullLagrangianHessian) {
     mfem::Vector duu(dimU);
-    duu = 0.0;
-    if (hessRegularization) {
-      duu = 1.e-4;
-    }
+    duu = hessRegularization;
     std::unique_ptr<mfem::HypreParMatrix> Duu;
     Duu.reset(
         GenerateHypreParMatrixFromDiagonal(problem->GetDofOffsetsU(), duu));

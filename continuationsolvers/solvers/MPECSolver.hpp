@@ -6,7 +6,8 @@
 
 class MPECSolver : public InteriorPointSolver {
 protected:
-  MPECProblem * paramoptproblem; 
+  MPECProblem * paramoptproblem;
+  double target_mu = 1.e-6;
 public:
   MPECSolver(MPECProblem *);
   double E(const mfem::BlockVector &, const mfem::Vector &,

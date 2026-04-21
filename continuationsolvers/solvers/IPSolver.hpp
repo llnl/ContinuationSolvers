@@ -54,7 +54,7 @@ protected:
 
   bool fullLagrangianHessian = false;
   bool checkLinearSysResiduals = false;
-  bool hessRegularization = false;
+  double hessRegularization = 0.0;
   mfem::Array<double> mu_history;
 
 public:
@@ -87,6 +87,7 @@ public:
            const mfem::Vector &, mfem::BlockVector &);
   void SetTol(double);
   void SetMaxIter(int);
+  void SetKEps(double kEps_) {kEps = kEps_;};
   void SetBarrierParameter(double);
   virtual double UpdateBarrierParameter(double);
   void GetNumIterations(int &);
@@ -104,7 +105,7 @@ public:
   void SetOutputStream(std::ostream *ipout_) { ipout = ipout_; };
   void SetLinearSolver(mfem::Solver &solver_) { linSolver = &(solver_); };
   void CheckLinearSystemResiduals() { checkLinearSysResiduals = true; };
-  void RegularizePrimalHessian() { hessRegularization = true; };
+  void RegularizePrimalHessian(double regValue = 1.e-4) { hessRegularization = regValue; };
   mfem::Array<double> GetMuHistory() { return mu_history; };
   virtual ~InteriorPointSolver();
 };

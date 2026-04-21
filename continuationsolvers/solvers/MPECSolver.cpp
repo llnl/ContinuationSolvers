@@ -9,15 +9,19 @@ MPECSolver::MPECSolver(MPECProblem * problem_) : InteriorPointSolver(problem_)
 double MPECSolver::E(const mfem::BlockVector &x, const mfem::Vector &l,
                               const mfem::Vector &zl, double mu,
                               bool printEeval) {
-  double mu_min = std::max(OptTol / 10., mu);
   MPECProblem * param_opt_problem = dynamic_cast<MPECProblem*> (problem);
   MFEM_VERIFY(param_opt_problem, "cast failure");
-  param_opt_problem->SetRegularizationConst(mu_min);
-  return InteriorPointSolver::E(x, l, zl, mu_min, printEeval);
+  double mu_used = std::max(target_mu, mu);
+  param_opt_problem->SetRegularizationConst(mu_used);
+  return InteriorPointSolver::E(x, l, zl, mu_used, printEeval);
 }
 
 double MPECSolver::UpdateBarrierParameter(double mu) {
-   return std::max(OptTol / 10., mu / 10.);
+   MPECProblem * param_opt_problem = dynamic_cast<MPECProblem*> (problem);
+   MFEM_VERIFY(param_opt_problem, "cast failure");
+   double mu_new = std::max(target_mu, mu / 10.);
+   param_opt_problem->SetRegularizationConst(mu_new);
+   return mu_new;
 }
 
 MPECSolver::~MPECSolver()
