@@ -312,7 +312,8 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
       break;
     }
     if (jOpt + 1 == max_iter && iAmRoot) {
-      *ipout << "maximum optimization iterations reached, exiting without converging\n";
+      *ipout << "maximum optimization iterations reached, exiting without "
+                "converging\n";
     }
   }
   // done with optimization routine, just reassign data to xf reference so
@@ -770,9 +771,8 @@ void InteriorPointSolver::SetTol(double Tol) { OptTol = Tol; }
 
 void InteriorPointSolver::SetMaxIter(int max_it) { max_iter = max_it; }
 
-
 double InteriorPointSolver::UpdateBarrierParameter(double mu) {
-     return std::max(OptTol / 10., std::min(kMu * mu, pow(mu, thetaMu)));
+  return std::max(OptTol / 10., std::min(kMu * mu, pow(mu, thetaMu)));
 }
 
 void InteriorPointSolver::SetBarrierParameter(double mu_0) { mu_k = mu_0; }
