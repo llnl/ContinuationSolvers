@@ -69,7 +69,6 @@ protected:
   double kRegBarPlus = 1.e2;
   double kRegPlus = 8.;
 
-
 public:
   InteriorPointSolver(GeneralOptProblem *);
   double MaxStepSize(mfem::Vector &, mfem::Vector &, mfem::Vector &, double);
@@ -78,16 +77,17 @@ public:
   void Mult(const mfem::Vector &, mfem::Vector &);
   void GetLagrangeMultiplier(mfem::Vector &);
   void FormIPNewtonMat(mfem::BlockVector &, mfem::Vector &, mfem::Vector &,
-                       mfem::BlockOperator &, const double& delta = 0.0);
+                       mfem::BlockOperator &, const double &delta = 0.0);
   void IPNewtonSolve(mfem::BlockVector &, mfem::Vector &, mfem::Vector &,
-                     mfem::Vector &, mfem::BlockVector &, const double&, bool &, const double& delta = 0.0);
+                     mfem::Vector &, mfem::BlockVector &, const double &,
+                     bool &, const double &delta = 0.0);
   void lineSearch(mfem::BlockVector &, mfem::BlockVector &, double);
   void projectZ(const mfem::Vector &, mfem::Vector &, double);
   void filterCheck(double, double);
   virtual double E(const mfem::BlockVector &, const mfem::Vector &,
-           const mfem::Vector &, double, bool);
+                   const mfem::Vector &, double, bool);
   virtual double E(const mfem::BlockVector &, const mfem::Vector &,
-           const mfem::Vector &, bool);
+                   const mfem::Vector &, bool);
   bool GetConverged() const;
   double theta(const mfem::BlockVector &, int &);
   double phi(const mfem::BlockVector &, double, int &);
@@ -100,7 +100,7 @@ public:
            const mfem::Vector &, mfem::BlockVector &);
   void SetTol(double);
   void SetMaxIter(int);
-  void SetKEps(double kEps_) {kEps = kEps_;};
+  void SetKEps(double kEps_) { kEps = kEps_; };
   void SetBarrierParameter(double);
   virtual double UpdateBarrierParameter(double);
   void GetNumIterations(int &);
@@ -121,10 +121,13 @@ public:
   void SetLinearSolver(mfem::Solver &solver_) { linSolver = &(solver_); };
   /// output linear system residuals, debug check
   void CheckLinearSystemResiduals() { checkLinearSysResiduals = true; };
-  void RegularizePrimalHessian(double regValue = 1.e-4) { hessRegularization = regValue; };
+  void RegularizePrimalHessian(double regValue = 1.e-4) {
+    hessRegularization = regValue;
+  };
   /// curvature test to detect negative-curvature
-  bool CurvatureTest(const mfem::BlockOperator & A, const mfem::BlockVector & Xhat,
-                      const mfem::Vector &l, const mfem::BlockVector & b, const double & delta);
+  bool CurvatureTest(const mfem::BlockOperator &A,
+                     const mfem::BlockVector &Xhat, const mfem::Vector &l,
+                     const mfem::BlockVector &b, const double &delta);
   mfem::Array<double> GetMuHistory() { return mu_history; };
   virtual ~InteriorPointSolver();
 };

@@ -267,61 +267,50 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
     Xhatuml = 0.0;
     bool passedCurvatureTest = false;
     IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k, passedCurvatureTest);
-    if (!passedCurvatureTest)
-    {
-       if (iAmRoot)
-       {
-          *ipout << "curvature test failed\n";
-       }
-       int maxCurvatureTests = 30;
-       double deltaReg = 0.0;
-       if (deltaRegLast < deltaRegMin)
-       {
-          deltaReg = deltaReg0;
-       }
-       else
-       {
-          deltaReg = std::max(deltaRegMin, kRegMinus * deltaRegLast);
-       }
-       
-       // solve regularized IP-Newton linear system
-       zlhat = 0.0;
-       Xhatuml = 0.0;
-       IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k, passedCurvatureTest, deltaReg);
-       for (int numCurvatureTests = 0; numCurvatureTests < maxCurvatureTests; numCurvatureTests++)
-       {
-          if (iAmRoot)
-	  {
-	     *ipout << "deltaReg = " << deltaReg << "\n";
-	  }
-	  if (passedCurvatureTest)
-	  {
-	    deltaRegLast = deltaReg;
-	    break;
-	  }
-	  else
-	  {
-	     if (deltaRegLast < deltaRegMin)
-	     {
-	        if (iAmRoot)
-		{
-		   *ipout << "delta *= " << kRegBarPlus << "\n";
-		}
-		deltaReg *= kRegBarPlus;
-	     }
-	     else
-	     {
-	       deltaReg *= kRegPlus;
-	     }
-	  }
-	  // solve regularized IP-Newton linear system with updated regularization param
-          zlhat = 0.0;
-          Xhatuml = 0.0;
-          IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k, passedCurvatureTest, deltaReg);
-       }
+    if (!passedCurvatureTest) {
+      if (iAmRoot) {
+        *ipout << "curvature test failed\n";
+      }
+      int maxCurvatureTests = 30;
+      double deltaReg = 0.0;
+      if (deltaRegLast < deltaRegMin) {
+        deltaReg = deltaReg0;
+      } else {
+        deltaReg = std::max(deltaRegMin, kRegMinus * deltaRegLast);
+      }
+
+      // solve regularized IP-Newton linear system
+      zlhat = 0.0;
+      Xhatuml = 0.0;
+      IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k, passedCurvatureTest,
+                    deltaReg);
+      for (int numCurvatureTests = 0; numCurvatureTests < maxCurvatureTests;
+           numCurvatureTests++) {
+        if (iAmRoot) {
+          *ipout << "deltaReg = " << deltaReg << "\n";
+        }
+        if (passedCurvatureTest) {
+          deltaRegLast = deltaReg;
+          break;
+        } else {
+          if (deltaRegLast < deltaRegMin) {
+            if (iAmRoot) {
+              *ipout << "delta *= " << kRegBarPlus << "\n";
+            }
+            deltaReg *= kRegBarPlus;
+          } else {
+            deltaReg *= kRegPlus;
+          }
+        }
+        // solve regularized IP-Newton linear system with updated regularization
+        // param
+        zlhat = 0.0;
+        Xhatuml = 0.0;
+        IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k, passedCurvatureTest,
+                      deltaReg);
+      }
     }
     mu_history.Append(mu_k);
-
 
     // assign data stack, X = (u, m, l, zl)
     Xk = 0.0;
@@ -383,7 +372,7 @@ void InteriorPointSolver::FormIPNewtonMat(mfem::BlockVector &x,
                                           mfem::Vector & /*l*/,
                                           mfem::Vector &zl,
                                           mfem::BlockOperator &Ak,
-					  const double &delta) {
+                                          const double &delta) {
   MFEM_VERIFY(!fullLagrangianHessian,
               "only supporting partial Lagrangian of the Hessian");
   auto Huuf = dynamic_cast<mfem::HypreParMatrix *>(problem->Duuf(x));
@@ -445,8 +434,10 @@ void InteriorPointSolver::FormIPNewtonMat(mfem::BlockVector &x,
 // determine the search direction
 void InteriorPointSolver::IPNewtonSolve(mfem::BlockVector &x, mfem::Vector &l,
                                         mfem::Vector &zl, mfem::Vector &zlhat,
-                                        mfem::BlockVector &Xhat, const double &mu,
-					bool &passedCurvatureTest, const double &delta) {
+                                        mfem::BlockVector &Xhat,
+                                        const double &mu,
+                                        bool &passedCurvatureTest,
+                                        const double &delta) {
   bool linSolveConvergence = false;
   int nKrylovIts = -1;
   // solve A x = b, where A is the IP-Newton matrix
@@ -515,8 +506,7 @@ void InteriorPointSolver::IPNewtonSolve(mfem::BlockVector &x, mfem::Vector &l,
     }
     if (res_norm > 1.e-4 || relative_res_norm > 1.e-4) {
       linSolveConvergence = false;
-    }
-    else {
+    } else {
       linSolveConvergence = true;
     }
     // TODO: if linear solve fails then report a failure of the curvature test
@@ -530,8 +520,6 @@ void InteriorPointSolver::IPNewtonSolve(mfem::BlockVector &x, mfem::Vector &l,
       passedCurvatureTest = linSolveConvergence;
     }
   }
-
-
 
   /* backsolve to determine zlhat */
   for (int ii = 0; ii < dimM; ii++) {
@@ -907,39 +895,36 @@ void InteriorPointSolver::SetLogBarrierMu(double mu) { muLogBarrierSol = mu; }
 // see "An Inertia-Free Filter Line-search Algorithm for
 // Large-scale Nonlinear Programming" by Nai-Yuan Chiang and
 // Victor M Zavala, Computational Optimization and Applications (2016)
-bool InteriorPointSolver::CurvatureTest(const mfem::BlockOperator & A,
-                             const mfem::BlockVector & Xhat, const mfem::Vector & l, const mfem::BlockVector & b,
-                             const double & delta)
-{
-   // current Lagrange multiplier + Lagrange multiplier update
-   mfem::Vector lplus(dimC);
-   lplus.Set(1.0, l);
-   lplus.Add(1.0, Xhat.GetBlock(2));
+bool InteriorPointSolver::CurvatureTest(const mfem::BlockOperator &A,
+                                        const mfem::BlockVector &Xhat,
+                                        const mfem::Vector &l,
+                                        const mfem::BlockVector &b,
+                                        const double &delta) {
+  // current Lagrange multiplier + Lagrange multiplier update
+  mfem::Vector lplus(dimC);
+  lplus.Set(1.0, l);
+  lplus.Add(1.0, Xhat.GetBlock(2));
 
-
-   double dWd = 0.0;
-   double dd = 0.0;
-   for (int i = 0; i < 2; i++)
-   {
-      for (int j = 0; j < 2; j++)
-      {
-         if (!A.IsZeroBlock(i, j))
-         {
-            mfem::Vector temp(A.GetBlock(i, j).Height()); temp = 0.0;
-            A.GetBlock(i, j).Mult(Xhat.GetBlock(j), temp);
-            dWd += mfem::InnerProduct(MPI_COMM_WORLD, Xhat.GetBlock(i), temp);
-         }
+  double dWd = 0.0;
+  double dd = 0.0;
+  for (int i = 0; i < 2; i++) {
+    for (int j = 0; j < 2; j++) {
+      if (!A.IsZeroBlock(i, j)) {
+        mfem::Vector temp(A.GetBlock(i, j).Height());
+        temp = 0.0;
+        A.GetBlock(i, j).Mult(Xhat.GetBlock(j), temp);
+        dWd += mfem::InnerProduct(MPI_COMM_WORLD, Xhat.GetBlock(i), temp);
       }
-      dd += mfem::InnerProduct(MPI_COMM_WORLD, Xhat.GetBlock(i), Xhat.GetBlock(i));
-   }
-   double lplusTck = -1.0 * mfem::InnerProduct(MPI_COMM_WORLD, lplus, b.GetBlock(2));
+    }
+    dd +=
+        mfem::InnerProduct(MPI_COMM_WORLD, Xhat.GetBlock(i), Xhat.GetBlock(i));
+  }
+  double lplusTck =
+      -1.0 * mfem::InnerProduct(MPI_COMM_WORLD, lplus, b.GetBlock(2));
 
-   bool passed = (dWd + std::fmax(-lplusTck,
-                             0.0) >= alphaCurvatureTest * dd);
-   return passed;
+  bool passed = (dWd + std::fmax(-lplusTck, 0.0) >= alphaCurvatureTest * dd);
+  return passed;
 }
-
-
 
 InteriorPointSolver::~InteriorPointSolver() {
   F1.DeleteAll();
