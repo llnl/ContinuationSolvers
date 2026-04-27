@@ -363,9 +363,9 @@ mfem::Operator * OptEqProblem::Dmc(const mfem::BlockVector &/*x*/)
    return dcdm;
 } 
 
-mfem::Operator * OptEqProblem::Duucl(const mfem::BlockVector &/*x*/, const mfem::Vector &/*l*/)
+mfem::Operator * OptEqProblem::Duucl(const mfem::BlockVector &x, const mfem::Vector &l)
 {
-   return nullptr;
+   return Dddgl(x.GetBlock(0), l);
 }
 
 mfem::Operator * OptEqProblem::Dumcl(const mfem::BlockVector &/*x*/, const mfem::Vector & /*l*/)
@@ -380,6 +380,13 @@ mfem::Operator * OptEqProblem::Dmucl(const mfem::BlockVector &/*x*/, const mfem:
 
 mfem::Operator * OptEqProblem::Dmmcl(const mfem::BlockVector &/*x*/, const mfem::Vector & /*l*/)
 {
+   return nullptr;
+}
+
+
+mfem::Operator * OptEqProblem::Dddgl(const mfem::Vector &/*d*/, const mfem::Vector &/*l*/)
+{
+   MFEM_VERIFY(false, "child class must provide implementation of Dddgl method"); 
    return nullptr;
 }
 
@@ -450,6 +457,12 @@ mfem::Operator * ParamOptProblem::Ddg(const mfem::Vector &d)
 mfem::Operator * ParamOptProblem::Dddgl(const mfem::Vector &d, const mfem::Vector &l)
 {
    return Dddgl(d, l, theta_default);
+}
+
+mfem::Operator * ParamOptProblem::Dddgl(const mfem::Vector &/*d*/, const mfem::Vector &/*l*/, const mfem::Vector&/*theta*/)
+{
+   MFEM_VERIFY(false, "child class must provide implementation of Dddgl method"); 
+   return nullptr;
 }
 
 ParamOptProblem::~ParamOptProblem() 

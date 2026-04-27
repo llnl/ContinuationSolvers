@@ -516,9 +516,9 @@ void InteriorPointSolver::IPNewtonSolve(mfem::BlockVector &x, mfem::Vector &l,
   if (iAmRoot) {
     *ipout << "curvature check passed? " << passedCurvatureTest << " \n";
     *ipout << "linear solver converged? " << linSolveConvergence << " \n";
-    if (!linSolveConvergence) {
-      passedCurvatureTest = linSolveConvergence;
-    }
+  }
+  if (!linSolveConvergence) {
+    passedCurvatureTest = linSolveConvergence;
   }
 
   /* backsolve to determine zlhat */

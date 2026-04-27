@@ -176,6 +176,13 @@ public:
     // input:  d, an mfem::Vector,
     // output: The Jacobain of the constraint function g at d, a pointer to a Operator
     virtual mfem::Operator * Ddg(const mfem::Vector &) = 0;
+    
+    
+    // Hessian of constraint times Lagrange multiplier D^2 (g^T l) Dd^2
+    // input: d, an mfem::Vector (primal)
+    // input: l, an mfem::Vector (Lagrange multiplier)
+    // output: The Hessian of the constraint function times Lagrange multiplier at d, a pointer to an mfem::Operator
+    virtual mfem::Operator *Dddgl(const mfem::Vector &, const mfem::Vector &);
     virtual ~OptEqProblem();
 };
 
@@ -264,8 +271,7 @@ public:
     // output: The Jacobian of the constraint function g at (d, \theta), with respect to \theta, a pointer to an mfem::Operator
     virtual mfem::Operator * Dthg(const mfem::Vector &d, const mfem::Vector & theta) = 0;
  
-    // TODO: should this be pure virtual?
-    virtual mfem::Operator * Dddgl(const mfem::Vector &d, const mfem::Vector &l, const mfem::Vector &theta) = 0;
+    virtual mfem::Operator * Dddgl(const mfem::Vector &d, const mfem::Vector &l, const mfem::Vector &theta);
     
     mfem::Operator * Dddgl(const mfem::Vector & d, const mfem::Vector &l) override;
     virtual ~ParamOptProblem();
