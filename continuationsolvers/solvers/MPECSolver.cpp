@@ -4,6 +4,7 @@
 
 MPECSolver::MPECSolver(MPECProblem * problem_) : InteriorPointSolver(problem_)
 {
+   kEps = 1.e1;
 }
 
 double MPECSolver::E(const mfem::BlockVector &x, const mfem::Vector &l,

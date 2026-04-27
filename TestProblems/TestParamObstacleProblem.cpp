@@ -171,7 +171,6 @@ int main(int argc, char *argv[])
       MPECSolver designoptimizer(&designproblem);
       designoptimizer.SetTol(1.e-8);
       designoptimizer.SetBarrierParameter(1.e-3);
-      designoptimizer.SetKEps(1.e1);
       designoptimizer.SetMaxIter(maxIPMiters);
       designoptimizer.CheckLinearSystemResiduals();
       designoptimizer.RegularizePrimalHessian(delta);
