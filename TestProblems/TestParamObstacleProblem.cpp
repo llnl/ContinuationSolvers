@@ -38,6 +38,7 @@ int main(int argc, char *argv[])
    int FEorder = 1; // order of the finite elements
    int maxIPMiters = 30;
    int ref_levels = 3;
+   double delta = 1.e-4;
    mfem::OptionsParser args(argc, argv);
    args.AddOption(&FEorder, "-o", "--order",\
 	 	  "Order of the finite elements.");
@@ -45,6 +46,8 @@ int main(int argc, char *argv[])
 	 	  "Maximum number of IPM iterations");
    args.AddOption(&ref_levels, "-r", "--mesh_refinement", \
 		  "Mesh Refinement");
+   args.AddOption(&delta, "-delta", "--delta", \
+		  "Primal Hessian regularization");
   
    args.ParseCheck();
 
@@ -171,7 +174,7 @@ int main(int argc, char *argv[])
       designoptimizer.SetKEps(1.e1);
       designoptimizer.SetMaxIter(maxIPMiters);
       designoptimizer.CheckLinearSystemResiduals();
-      designoptimizer.RegularizePrimalHessian();
+      designoptimizer.RegularizePrimalHessian(delta);
       designoptimizer.Mult(U0, Uf);
       auto mu_history = designoptimizer.GetMuHistory();
       if (!myid)

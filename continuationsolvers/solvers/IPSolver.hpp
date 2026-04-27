@@ -57,6 +57,19 @@ protected:
   double hessRegularization = 0.0;
   mfem::Array<double> mu_history;
 
+  /// inertia-regularization parameters
+  double alphaCurvatureTest = 1.e-11;
+  double deltaRegLast = 0.0;
+  double deltaRegMin = 1.e-20;
+  double deltaRegMax = 1.e40;
+  double deltaReg0 = 1.e-4;
+
+  /// inertia-regularization rate parameters
+  double kRegMinus = 1. / 3.;
+  double kRegBarPlus = 1.e2;
+  double kRegPlus = 8.;
+
+
 public:
   InteriorPointSolver(GeneralOptProblem *);
   double MaxStepSize(mfem::Vector &, mfem::Vector &, mfem::Vector &, double);
@@ -65,9 +78,9 @@ public:
   void Mult(const mfem::Vector &, mfem::Vector &);
   void GetLagrangeMultiplier(mfem::Vector &);
   void FormIPNewtonMat(mfem::BlockVector &, mfem::Vector &, mfem::Vector &,
-                       mfem::BlockOperator &);
+                       mfem::BlockOperator &, const double& delta = 0.0);
   void IPNewtonSolve(mfem::BlockVector &, mfem::Vector &, mfem::Vector &,
-                     mfem::Vector &, mfem::BlockVector &, double);
+                     mfem::Vector &, mfem::BlockVector &, const double&, bool &, const double& delta = 0.0);
   void lineSearch(mfem::BlockVector &, mfem::BlockVector &, double);
   void projectZ(const mfem::Vector &, mfem::Vector &, double);
   void filterCheck(double, double);
@@ -102,10 +115,16 @@ public:
   void GetLogBarrierZl(mfem::Vector &);
   void GetLogBarrierMu(double &);
   void SetLogBarrierMu(double);
+  /// control output from solver
   void SetOutputStream(std::ostream *ipout_) { ipout = ipout_; };
+  /// set the linear solver method used for the IP-Newton linear system
   void SetLinearSolver(mfem::Solver &solver_) { linSolver = &(solver_); };
+  /// output linear system residuals, debug check
   void CheckLinearSystemResiduals() { checkLinearSysResiduals = true; };
   void RegularizePrimalHessian(double regValue = 1.e-4) { hessRegularization = regValue; };
+  /// curvature test to detect negative-curvature
+  bool CurvatureTest(const mfem::BlockOperator & A, const mfem::BlockVector & Xhat,
+                      const mfem::Vector &l, const mfem::BlockVector & b, const double & delta);
   mfem::Array<double> GetMuHistory() { return mu_history; };
   virtual ~InteriorPointSolver();
 };
