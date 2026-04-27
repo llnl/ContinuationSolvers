@@ -297,6 +297,8 @@ mfem::Operator * MPECProblem::Ddg(const mfem::Vector &U)
    mfem::BlockVector Ublk(primal_blockoffsets);
    Ublk.Set(1.0, U);
    auto hessddE = dynamic_cast<mfem::HypreParMatrix*>(paramopt->DddE(Ublk.GetBlock(0), Ublk.GetBlock(2)));
+   auto hessddgl = dynamic_cast<mfem::HypreParMatrix*>(paramopt->Dddgl(Ublk.GetBlock(0), Ublk.GetBlock(1), Ublk.GetBlock(2)));
+   auto hessdthgl = dynamic_cast<mfem::HypreParMatrix*>(paramopt->Ddthgl(Ublk.GetBlock(0), Ublk.GetBlock(1), Ublk.GetBlock(2)));   
    auto hessdthE = dynamic_cast<mfem::HypreParMatrix*>(paramopt->DdthE(Ublk.GetBlock(0), Ublk.GetBlock(2)));
    auto jacdg = dynamic_cast<mfem::HypreParMatrix*>(paramopt->Ddg(Ublk.GetBlock(0), Ublk.GetBlock(2)));
    auto jacthg = dynamic_cast<mfem::HypreParMatrix*>(paramopt->Dthg(Ublk.GetBlock(0), Ublk.GetBlock(2)));
@@ -304,6 +306,8 @@ mfem::Operator * MPECProblem::Ddg(const mfem::Vector &U)
    MFEM_VERIFY(jacthg, "cast issue");
    MFEM_VERIFY(hessddE, "cast issue");
    MFEM_VERIFY(hessdthE, "cast issue");
+   MFEM_VERIFY(hessddgl, "cast issue");
+   MFEM_VERIFY(hessdthgl, "cast issue");
    
    std::unique_ptr<mfem::HypreParMatrix> jacdgT;
    jacdgT.reset(jacdg->Transpose());
@@ -324,9 +328,14 @@ mfem::Operator * MPECProblem::Ddg(const mfem::Vector &U)
          blockmat(i, j) = nullptr;
       }
    }
-   blockmat(0, 0) = hessddE; // should be Hessian of Lagrangian and not just of energy
+   
+   std::unique_ptr<mfem::HypreParMatrix> hessddL;
+   hessddL.reset(ParAdd(hessddE, hessddgl)); // TODO: fix sign hessE - hess(g^T l)
+   std::unique_ptr<mfem::HypreParMatrix> hessdthL;
+   hessdthL.reset(ParAdd(hessdthE, hessdthgl));
+   blockmat(0, 0) = hessddL.get(); // should be Hessian of Lagrangian and not just of energy
    blockmat(0, 1) = jacdgT.get();
-   blockmat(0, 2) = hessdthE; // should be Hessian of Lagrangian and not just of energy
+   blockmat(0, 2) = hessdthL.get(); // should be Hessian of Lagrangian and not just of energy
    blockmat(1, 0) = jacdg;
    blockmat(1, 2) = jacthg;
    blockmat(1, 3) = dg1ds.get(); // d/ds (g(u, \theta) - s)

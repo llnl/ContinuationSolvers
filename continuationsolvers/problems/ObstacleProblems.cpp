@@ -169,7 +169,7 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
    Jth.reset(GenerateHypreParMatrixFromDiagonal(dofOffsetsU, iDiag));
 
    Hddgl.reset(GenerateNullHypreParMatrix(dofOffsetsU, dofOffsetsU));
-   Hthdgl.reset(GenerateNullHypreParMatrix(dofOffsetsU, dofOffsetsU));
+   Hdthgl.reset(GenerateNullHypreParMatrix(dofOffsetsU, dofOffsetsU));
    HdthE.reset(GenerateNullHypreParMatrix(dofOffsetsU, dofOffsetsU));
 }
 
@@ -229,9 +229,9 @@ mfem::Operator * ParamObstacleProblem::Dddgl(const mfem::Vector &d, const mfem::
    return Hddgl.get();
 }
 
-mfem::Operator * ParamObstacleProblem::Dthdgl(const mfem::Vector &d, const mfem::Vector &l, const mfem::Vector & theta)
+mfem::Operator * ParamObstacleProblem::Ddthgl(const mfem::Vector &d, const mfem::Vector &l, const mfem::Vector & theta)
 {
-   return Hthdgl.get();
+   return Hdthgl.get();
 }
 
 

@@ -465,6 +465,12 @@ mfem::Operator * ParamOptProblem::Dddgl(const mfem::Vector &/*d*/, const mfem::V
    return nullptr;
 }
 
+mfem::Operator * ParamOptProblem::Ddthgl(const mfem::Vector &d, const mfem::Vector &l, const mfem::Vector & theta)
+{
+   MFEM_VERIFY(false, "child class must provide implementation of Dddthl method"); 
+   return nullptr;
+}
+
 ParamOptProblem::~ParamOptProblem() 
 {
    if (!dofOffsetsTheta)

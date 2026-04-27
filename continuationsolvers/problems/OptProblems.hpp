@@ -274,6 +274,8 @@ public:
     virtual mfem::Operator * Dddgl(const mfem::Vector &d, const mfem::Vector &l, const mfem::Vector &theta);
     
     mfem::Operator * Dddgl(const mfem::Vector & d, const mfem::Vector &l) override;
+    virtual mfem::Operator * Ddthgl(const mfem::Vector &d, const mfem::Vector &l, const mfem::Vector & theta);
+    
     virtual ~ParamOptProblem();
 };
 
@@ -296,38 +298,6 @@ public:
   OptProblem * GetProblem() {  return problem; }
   virtual ~ReducedOptProblem();
 };
-
-
-
-
-
-
-//enum MPECRegularizationType
-//{
-//   CHKS,
-//};
-
-
-
-
-//class RegularizedMPECProblem : public OptEqProblem
-//{
-//protected:
-//  double gamma = 1.e-2; // complementarity regularization
-//  OptProblem *problem;  // constraints of regularized MPEC given in terms of optimality conditions of an OptProblem
-//public:
-//  RegularizedMPECProblem(OptProblem *problem, MPECRegularizationType = MPECRegularizationType::CHKS);
-//  virtual double E(const mfem::Vector &, int &) = 0;
-//  virtual void DdE(const mfem::Vector &, mfem::Vector &) = 0;
-//  virtual mfem::Operator * DddE(const mfem::Vector &) = 0;
-//  void g(const mfem::Vector &, mfem::Vector &, int &);
-//  mfem::Operator * Ddg(const mfem::Vector &);
-//  virtual ~RegularizedMPECProblem();
-//};
-
-
-
-
 
 
 #endif // OPTPROBLEM_DEFS
