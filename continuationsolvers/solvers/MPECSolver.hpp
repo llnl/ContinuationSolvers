@@ -1,13 +1,14 @@
-#include "IPSolver.hpp"
 #include "../problems/MPECProblems.hpp"
+#include "IPSolver.hpp"
 
 #ifndef MPECSOLVER
 #define MPECSOLVER
 
 class MPECSolver : public InteriorPointSolver {
 protected:
-  MPECProblem * paramoptproblem;
+  MPECProblem *paramoptproblem;
   double target_mu = 1.e-6;
+
 public:
   MPECSolver(MPECProblem *);
   double E(const mfem::BlockVector &, const mfem::Vector &,
