@@ -1,15 +1,15 @@
-# HomotopySolver
+# ContinuationSolvers
 
 
 
 
 ***
 
-## HomotopySolver
-This repository contains two homotopy solvers. First is for constrained optimization via the interior-point method, the second is a mixed nonlinear complementarity problem solver.
+## ContinuationSolvers
+This repository contains two continuation solvers. First is for constrained optimization via the interior-point method, the second is a mixed nonlinear complementarity problem solver.
 
 ## Description
-With this project one can solve nonlinear complementarity problems as defined by a GeneralNLMCProblem (see problems/NLMCProblems.hpp). One can also solve constrained optimization problems by the interior-point method as defined by a ParGeneralOptProblem (see problems/OptProblems.hpp).
+With this project one can solve nonlinear complementarity problems as defined by a GeneralNLMCProblem (see problems/NLMCProblems.hpp). One can also solve constrained optimization problems by the interior-point method as defined by a GeneralOptProblem (see problems/OptProblems.hpp).
 
 ## Installation
 1. Install [mfem](https://mfem.org/). 
