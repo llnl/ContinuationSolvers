@@ -6,7 +6,7 @@
 ***
 
 ## ContinuationSolvers
-This repository contains two continuation solvers. First is for constrained optimization via the interior-point method, the second is a mixed nonlinear complementarity problem solver.
+This repository contains two continuation solvers. The first of which is an interior-point method for smooth constrained optimization, the second (HomotopySolver) is a mixed nonlinear complementarity problem solver.
 
 ## Description
 With this project one can solve nonlinear complementarity problems as defined by a GeneralNLMCProblem (see problems/NLMCProblems.hpp). One can also solve constrained optimization problems by the interior-point method as defined by a GeneralOptProblem (see problems/OptProblems.hpp).
