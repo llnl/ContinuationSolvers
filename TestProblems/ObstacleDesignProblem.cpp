@@ -64,11 +64,12 @@ int main(int argc, char *argv[])
 
    // finite element-space
    int dim = mesh.Dimension(); // geometric dimension of the meshed domain
-   mfem::FiniteElementCollection *fec = new mfem::H1_FECollection(FEorder, dim);
-   mfem::ParFiniteElementSpace   *Vh  = new mfem::ParFiniteElementSpace(&pmesh, fec);
+   auto fec = std::make_unique<mfem::H1_FECollection>(FEorder, dim);
+   auto fes  = std::make_unique<mfem::ParFiniteElementSpace>(&pmesh, fec.get());
+   auto Vh = fes.get();
 
    // define parametrized obstacle problem
-   ParamObstacleProblem problem(Vh,&fRhs,&flat_obstacle);
+   ParamObstacleProblem problem(Vh, &fRhs, &flat_obstacle);
   
    int dimU = problem.GetDimU();
    mfem::Vector x0(dimU); x0 = 100.0;
@@ -105,9 +106,6 @@ int main(int argc, char *argv[])
    ObstacleDesignProblem designproblem(&problem);
    int dimDesign = designproblem.GetDimU();
    int dimConstraints = designproblem.GetDimC();
-   std::cout << "number of design variables = " << dimDesign << std::endl;
-   std::cout << "number of constriants (design problem) = " << dimConstraints << std::endl;
-
 
    mfem::Vector U0(dimDesign);
    mfem::Vector Uf(dimDesign);
@@ -184,10 +182,9 @@ int main(int argc, char *argv[])
 	 }
       }
    }
-
-
-   delete Vh;
-   delete fec;
+   
+   
+   
    return 0;
 }
 
