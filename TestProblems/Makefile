@@ -1,6 +1,6 @@
 # Use the MFEM build directory
-MFEM_DIR ?= /home/tucker/software/glvis_mfem/mfem
-MFEM_BUILD_DIR ?= $(MFEM_DIR)/parallel_mumps_build
+MFEM_DIR ?= /usr/workspace/tuckerh/mfem
+MFEM_BUILD_DIR ?= $(MFEM_DIR)/buildCPARDISO2
 
 
 SRC=../continuationsolvers
@@ -79,6 +79,9 @@ TestProblem5: TestProblem5.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
 TestObstacleProblem: TestObstacleProblem.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
 	$(MFEM_CXX) $(MFEM_FLAGS) TestObstacleProblem.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
 
+ObstacleDesignProblem: ObstacleDesignProblem.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) ObstacleDesignProblem.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
 TestSphericalObstacleProblem: TestSphericalObstacleProblem.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
 	$(MFEM_CXX) $(MFEM_FLAGS) TestSphericalObstacleProblem.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
 
@@ -93,4 +96,4 @@ $(MFEM_LIB_FILE):
 
 .PHONY: clean
 clean:
-	rm -f *.o $(PROB_DIR)/*.o $(SOLVER_DIR)/*.o $(TEST_LIB_DIR)/*.o $(TEST_LIB_DIR)/*.a TestProblem1 TestProblem1a TestProblem1b TestProblem1c TestProblem2 TestProblem3 TestProblem4 TestProblem4a TestProblem5 LibTestProblem TestObstacleProblem TestSphericalObstacleProblem
+	rm -f *.o $(PROB_DIR)/*.o $(SOLVER_DIR)/*.o $(TEST_LIB_DIR)/*.o $(TEST_LIB_DIR)/*.a TestProblem1 TestProblem1a TestProblem1b TestProblem1c TestProblem2 TestProblem3 TestProblem4 TestProblem4a TestProblem5 LibTestProblem TestObstacleProblem TestSphericalObstacleProblem ObstacleDesignProblem

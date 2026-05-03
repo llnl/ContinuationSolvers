@@ -1,9 +1,9 @@
-//                         Obstacle Problem
+//                         Obstacle Design Problem
 //
 //
-// Compile with: make ParamObstacleProblem
+// Compile with: make ObstacleDesignProblem
 //
-// Sample runs: mpirun -np 4 ./ParamObstacleProblem
+// Sample runs: mpirun -np 4 ./ObstacleDesignProblem
 //
 //
 // Description: This example code demonstrates the use of MFEM to solve the
