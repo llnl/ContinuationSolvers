@@ -263,6 +263,63 @@ mfem::Operator * MPECProblem::DzRegularizedComplementarity(
    return DzPhi.get();
 }
 
+
+mfem::Operator * MPECProblem::DsslRegularizedComplementarity(
+    const mfem::Vector &s, const mfem::Vector & z, const mfem::Vector &l, const double & mu)
+{
+   MFEM_VERIFY(s.Size() == z.Size(), "sizes incorrect");
+   MFEM_VERIFY(s.Size() == l.Size(), "sizes incorrect");
+   MFEM_VERIFY(s.Size() == paramopt->GetDimM(), "sizes incorrect");
+   // Verify sizes
+   mfem::Vector diag(s.Size()); diag = 0.0;
+   for (int i = 0; i < s.Size(); i++)
+   {
+     diag(i) = (s(i) - std::pow(s(i), 2) - std::pow(z(i), 2) - mu) / std::pow(std::pow(s(i), 2) + std::pow(z(i), 2) + mu, 1.5);
+     diag(i) *= l(i);
+   }
+   DsslPhi.reset(GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsM(), diag));
+   return DsslPhi.get();
+}
+
+
+mfem::Operator * MPECProblem::DszlRegularizedComplementarity(
+    const mfem::Vector &s, const mfem::Vector & z, const mfem::Vector &l, const double & mu)
+{
+   MFEM_VERIFY(s.Size() == z.Size(), "sizes incorrect");
+   MFEM_VERIFY(s.Size() == l.Size(), "sizes incorrect");
+   MFEM_VERIFY(s.Size() == paramopt->GetDimM(), "sizes incorrect");
+   // Verify sizes
+   mfem::Vector diag(s.Size()); diag = 0.0;
+   for (int i = 0; i < s.Size(); i++)
+   {
+     diag(i) = s(i)*z(i)  / std::pow(std::pow(s(i), 2) + std::pow(z(i), 2) + mu, 1.5);
+     diag(i) *= l(i);
+   }
+   DszlPhi.reset(GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsM(), diag));
+   return DszlPhi.get();
+}
+
+mfem::Operator * MPECProblem::DzzlRegularizedComplementarity(
+    const mfem::Vector &s, const mfem::Vector & z, const mfem::Vector &l, const double & mu)
+{
+   MFEM_VERIFY(s.Size() == z.Size(), "sizes incorrect");
+   MFEM_VERIFY(s.Size() == l.Size(), "sizes incorrect");
+   MFEM_VERIFY(s.Size() == paramopt->GetDimM(), "sizes incorrect");
+   // Verify sizes
+   mfem::Vector diag(s.Size()); diag = 0.0;
+   for (int i = 0; i < s.Size(); i++)
+   {
+     diag(i) = (z(i) - std::pow(s(i), 2) - std::pow(z(i), 2) - mu) / std::pow(std::pow(s(i), 2) + std::pow(z(i), 2) + mu, 1.5);
+     diag(i) *= l(i);
+   }
+   DzzlPhi.reset(GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsM(), diag));
+   return DzzlPhi.get();
+}
+
+
+
+
+
 void MPECProblem::g(const mfem::Vector &U, mfem::Vector & gU, int & eval_err)
 {
    // cast U and gU to BlockVectors
@@ -330,12 +387,12 @@ mfem::Operator * MPECProblem::Ddg(const mfem::Vector &U)
    }
    
    std::unique_ptr<mfem::HypreParMatrix> hessddL;
-   hessddL.reset(ParAdd(hessddE, hessddgl)); // TODO: fix sign hessE - hess(g^T l)
+   hessddL.reset(ParAdd(hessddE, hessddgl));
    std::unique_ptr<mfem::HypreParMatrix> hessdthL;
    hessdthL.reset(ParAdd(hessdthE, hessdthgl));
-   blockmat(0, 0) = hessddL.get(); // should be Hessian of Lagrangian and not just of energy
+   blockmat(0, 0) = hessddL.get();
    blockmat(0, 1) = jacdgT.get();
-   blockmat(0, 2) = hessdthL.get(); // should be Hessian of Lagrangian and not just of energy
+   blockmat(0, 2) = hessdthL.get();
    blockmat(1, 0) = jacdg;
    blockmat(1, 2) = jacthg;
    blockmat(1, 3) = dg1ds.get(); // d/ds (g(u, \theta) - s)
@@ -348,6 +405,43 @@ mfem::Operator * MPECProblem::Ddg(const mfem::Vector &U)
    
    return constraintJacobian.get();
 }
+
+mfem::Operator * MPECProblem::Dddgl(const mfem::Vector & U, const mfem::Vector &l)
+{
+   mfem::BlockVector Ublk(primal_blockoffsets);
+   Ublk.Set(1.0, U);
+   mfem::BlockVector lblk(constraint_blockoffsets);
+   lblk.Set(1.0, l);
+   // build the monolithic HypreParMatrix Hessian
+   mfem::Array2D<const mfem::HypreParMatrix *> blockmat(primal_blockoffsets.Size() - 1, primal_blockoffsets.Size() - 1);
+   for (int i = 0; i < blockmat.NumRows(); i++)
+   {
+      for (int j = 0; j < blockmat.NumCols(); j++)
+      {
+         blockmat(i, j) = nullptr;
+      }
+   }
+   // after these calls the member variables DsslPhi, DszlPhi and DzzlPhi will be available for use
+   auto temp1 = DsslRegularizedComplementarity(Ublk.GetBlock(3), Ublk.GetBlock(4), lblk.GetBlock(3), compl_reg_const);
+   auto temp2 = DszlRegularizedComplementarity(Ublk.GetBlock(3), Ublk.GetBlock(4), lblk.GetBlock(3), compl_reg_const);
+   auto temp3 = DzzlRegularizedComplementarity(Ublk.GetBlock(3), Ublk.GetBlock(4), lblk.GetBlock(3), compl_reg_const);
+
+   // TODO: add more blocks specifically the blocks:
+   // (u,  u), (u,  p), (u,  th)
+   // (p,  u)           (p,  th)
+   // (th, u), (th, p), (th, th) 
+   // coming from
+   // third derivatives of parametrized optimization
+   // optimality constraints
+
+   blockmat(3, 3) = DsslPhi.get();
+   blockmat(3, 4) = DszlPhi.get();
+   blockmat(4, 3) = DszlPhi.get();
+   blockmat(4, 4) = DzzlPhi.get();
+   constraintHessian.reset(HypreParMatrixFromBlocks(blockmat));
+   return constraintHessian.get();
+}
+
 
 MPECProblem::~MPECProblem()
 {

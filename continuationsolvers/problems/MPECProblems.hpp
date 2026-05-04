@@ -17,7 +17,11 @@ protected:
   double compl_reg_const = 1.e-2; // complementarity regularization 
   std::unique_ptr<mfem::HypreParMatrix> DsPhi;
   std::unique_ptr<mfem::HypreParMatrix> DzPhi;
+  std::unique_ptr<mfem::HypreParMatrix> DsslPhi;
+  std::unique_ptr<mfem::HypreParMatrix> DszlPhi;
+  std::unique_ptr<mfem::HypreParMatrix> DzzlPhi;
   std::unique_ptr<mfem::HypreParMatrix> constraintJacobian;
+  std::unique_ptr<mfem::HypreParMatrix> constraintHessian;
 
   // Hessian energy
   std::unique_ptr<mfem::HypreParMatrix> HE; 
@@ -42,6 +46,12 @@ public:
     const double &mu);
   mfem::Operator * DzRegularizedComplementarity(const mfem::Vector &s, const mfem::Vector & z,
     const double &mu);
+  mfem::Operator * DsslRegularizedComplementarity(const mfem::Vector &s, const mfem::Vector & z,
+		  const mfem::Vector &l, const double & mu);
+  mfem::Operator * DszlRegularizedComplementarity(const mfem::Vector &s, const mfem::Vector & z,
+		  const mfem::Vector &l, const double & mu);
+  mfem::Operator * DzzlRegularizedComplementarity(const mfem::Vector &s, const mfem::Vector & z,
+		  const mfem::Vector &l, const double & mu);
   void SetRegularizationConst(const double & reg_const) { compl_reg_const = reg_const; };
   
   // objective in terms of u, p, and theta
@@ -63,6 +73,7 @@ public:
   mfem::Operator * DddE(const mfem::Vector & U) override;
   void g(const mfem::Vector &U, mfem::Vector &gU, int & eval_err) override;
   mfem::Operator * Ddg(const mfem::Vector &U) override; 
+  mfem::Operator * Dddgl(const mfem::Vector &U, const mfem::Vector &l) override;
   virtual ~MPECProblem();
 };
 
