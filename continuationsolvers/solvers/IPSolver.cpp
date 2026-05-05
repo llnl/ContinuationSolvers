@@ -1,5 +1,4 @@
 #include "IPSolver.hpp"
-#include "mfem.hpp"
 #ifdef MFEM_USE_STRUMPACK
 #include <StrumpackOptions.hpp>
 #include <mfem/linalg/strumpack.hpp>
@@ -367,8 +366,7 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
   xf.GetBlock(1).Set(1.0, xk.GetBlock(1));
 }
 
-void InteriorPointSolver::FormIPNewtonMat(mfem::BlockVector &x,
-                                          mfem::Vector & l,
+void InteriorPointSolver::FormIPNewtonMat(mfem::BlockVector &x, mfem::Vector &l,
                                           mfem::Vector &zl,
                                           mfem::BlockOperator &Ak,
                                           const double &delta) {
@@ -378,111 +376,85 @@ void InteriorPointSolver::FormIPNewtonMat(mfem::BlockVector &x,
   auto Humf = dynamic_cast<mfem::HypreParMatrix *>(problem->Dumf(x));
   auto Hmuf = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmuf(x));
   auto Hmmf = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmmf(x));
-  
-  auto Huucl = dynamic_cast<mfem::HypreParMatrix *>(problem->Duucl(x, l)); 
-  auto Humcl = dynamic_cast<mfem::HypreParMatrix *>(problem->Dumcl(x, l)); 
-  auto Hmucl = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmucl(x, l)); 
+
+  auto Huucl = dynamic_cast<mfem::HypreParMatrix *>(problem->Duucl(x, l));
+  auto Humcl = dynamic_cast<mfem::HypreParMatrix *>(problem->Dumcl(x, l));
+  auto Hmucl = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmucl(x, l));
   auto Hmmcl = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmmcl(x, l));
-	
+
   mfem::Vector duu(dimU);
   duu = hessRegularization + delta;
   std::unique_ptr<mfem::HypreParMatrix> Duu;
-  Duu.reset(
-      GenerateHypreParMatrixFromDiagonal(problem->GetDofOffsetsU(), duu));
+  Duu.reset(GenerateHypreParMatrixFromDiagonal(problem->GetDofOffsetsU(), duu));
   std::unique_ptr<mfem::HypreParMatrix> Huu2;
-  // (0,0), Hessian block Hmm   
+  // (0,0), Hessian block Hmm
   if (!fullLagrangianHessian || !Huucl) {
     if (Huuf) {
       Huu.reset(ParAdd(Huuf, Duu.get()));
-    }
-    else {
+    } else {
       Huu.reset(new mfem::HypreParMatrix(*Duu.get()));
     }
-  }
-  else  {
-    if (Huuf)
-    {
+  } else {
+    if (Huuf) {
       Huu2.reset(ParAdd(Huucl, Duu.get()));
-      Huu.reset(ParAdd(Huuf, Huu2.get()));      
-    }
-    else  {
+      Huu.reset(ParAdd(Huuf, Huu2.get()));
+    } else {
       Huu.reset(ParAdd(Huucl, Duu.get()));
     }
   }
-  
-  
+
   mfem::Vector DiagLogBar(dimM);
   DiagLogBar = 0.0;
   for (int ii = 0; ii < dimM; ii++) {
-    DiagLogBar(ii) = zl(ii) / (x(ii + dimU) - ml(ii)) + delta + hessRegularization;
+    DiagLogBar(ii) =
+        zl(ii) / (x(ii + dimU) - ml(ii)) + delta + hessRegularization;
   }
   std::unique_ptr<mfem::HypreParMatrix> Dmm;
   Dmm.reset(GenerateHypreParMatrixFromDiagonal(problem->GetDofOffsetsM(),
-                                             DiagLogBar));
+                                               DiagLogBar));
   std::unique_ptr<mfem::HypreParMatrix> Hmm2;
-  // (1,1), Hessian block Hmm   
+  // (1,1), Hessian block Hmm
   if (!fullLagrangianHessian || !Hmmcl) {
     if (Hmmf) {
       Hmm.reset(ParAdd(Hmmf, Dmm.get()));
-    }
-    else {
+    } else {
       Hmm.reset(new mfem::HypreParMatrix(*Dmm.get()));
     }
-  }
-  else  {
-    if (Hmmf)
-    {
+  } else {
+    if (Hmmf) {
       Hmm2.reset(ParAdd(Hmmcl, Dmm.get()));
-      Hmm.reset(ParAdd(Hmmf, Hmm2.get()));      
-    }
-    else  {
+      Hmm.reset(ParAdd(Hmmf, Hmm2.get()));
+    } else {
       Hmm.reset(ParAdd(Hmmcl, Dmm.get()));
     }
   }
 
-  
-  
   // (0,1) Hessian block, Hum
-  if (!fullLagrangianHessian || !Humcl)  {
-    if (Humf)
-    {
+  if (!fullLagrangianHessian || !Humcl) {
+    if (Humf) {
       Hum.reset(new mfem::HypreParMatrix(*Humf)); // deep-copy
-    }
-    else
-    {
+    } else {
       Hum.reset(nullptr); // deep-copy
     }
-  }
-  else {
-    if (Humf)
-    {
+  } else {
+    if (Humf) {
       Hum.reset(ParAdd(Humf, Humcl));
-    }
-    else
-    {
+    } else {
       Hum.reset(new mfem::HypreParMatrix(*Humcl));
     }
   }
 
-  
   // (1, 0) Hessian block, Hmu
-  if (!fullLagrangianHessian || !Hmucl)  {
-    if (Hmuf)
-    {
+  if (!fullLagrangianHessian || !Hmucl) {
+    if (Hmuf) {
       Hmu.reset(new mfem::HypreParMatrix(*Hmuf)); // deep-copy
-    }
-    else
-    {
+    } else {
       Hmu.reset(nullptr); // deep-copy
     }
-  }
-  else {
-    if (Hmuf)
-    {
+  } else {
+    if (Hmuf) {
       Hmu.reset(ParAdd(Hmuf, Hmucl));
-    }
-    else
-    {
+    } else {
       Hmu.reset(new mfem::HypreParMatrix(*Hmucl));
     }
   }
