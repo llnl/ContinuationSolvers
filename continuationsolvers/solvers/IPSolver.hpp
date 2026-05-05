@@ -31,9 +31,9 @@ protected:
   mfem::Array<int> block_offsetsumlz, block_offsetsuml, block_offsetsx;
   mfem::Vector ml;
 
-  mfem::HypreParMatrix *Hum, *Hmu, *Hmm, *Wmm, *Ju, *Jm;
+  mfem::HypreParMatrix *Ju, *Jm;
 
-  std::unique_ptr<mfem::HypreParMatrix> Huu, D, JuT, JmT;
+  std::unique_ptr<mfem::HypreParMatrix> Huu, Hum, Hmu, Hmm, JuT, JmT;
   mfem::Solver *linSolver;
   int jOpt;
   bool converged;

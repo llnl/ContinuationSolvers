@@ -316,12 +316,9 @@ void OptEqProblem::Init(HYPRE_BigInt * dofOffsetsU_, HYPRE_BigInt * dofOffsetsC_
   
   ml.SetSize(dimM); ml = 0.0;
   
-  {
-     int nentries = 0;
-     auto temp_sparsemat = new mfem::SparseMatrix(dimC, dimMglb, nentries);
-     dcdm = GenerateHypreParMatrixFromSparseMatrix(dofOffsetsC, dofOffsetsM, temp_sparsemat);
-     delete temp_sparsemat;
-  }
+  dcdm.reset(GenerateNullHypreParMatrix(dofOffsetsC, dofOffsetsM));
+  Hmmf.reset(GenerateNullHypreParMatrix(dofOffsetsM, dofOffsetsM));
+  
 }
 
 
@@ -344,7 +341,7 @@ mfem::Operator * OptEqProblem::Dumf(const mfem::BlockVector &/*x*/) { return nul
 
 mfem::Operator * OptEqProblem::Dmuf(const mfem::BlockVector &/*x*/) { return nullptr; }
 
-mfem::Operator * OptEqProblem::Dmmf(const mfem::BlockVector &/*x*/) { return nullptr; }
+mfem::Operator * OptEqProblem::Dmmf(const mfem::BlockVector &/*x*/) { return Hmmf.get(); }
 
 // c(u, m) = g(u)
 void OptEqProblem::c(const mfem::BlockVector &x, mfem::Vector &y, int & eval_err) 
@@ -360,7 +357,7 @@ mfem::Operator * OptEqProblem::Duc(const mfem::BlockVector &x)
 
 mfem::Operator * OptEqProblem::Dmc(const mfem::BlockVector &/*x*/) 
 { 
-   return dcdm;
+   return dcdm.get();
 } 
 
 mfem::Operator * OptEqProblem::Duucl(const mfem::BlockVector &x, const mfem::Vector &l)
@@ -395,7 +392,6 @@ OptEqProblem::~OptEqProblem()
   delete[] dofOffsetsU;
   delete[] dofOffsetsM;
   delete[] dofOffsetsC;
-  delete dcdm;
 }
 
 

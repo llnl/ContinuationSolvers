@@ -458,7 +458,18 @@ mfem::Operator *MPECProblem::Dddgl(const mfem::Vector &U,
   // coming from
   // third derivatives of parametrized optimization
   // optimality constraints
+  // THIS IS CRITICAL AS the HypreParMatrixFromBlocks will fail
+  // if there are null row blocks
+  std::unique_ptr<mfem::HypreParMatrix> tempuu;
+  std::unique_ptr<mfem::HypreParMatrix> tempmm;
+  std::unique_ptr<mfem::HypreParMatrix> tempthth;
+  tempuu.reset(GenerateNullHypreParMatrix(paramopt->GetDofOffsetsU(), paramopt->GetDofOffsetsU()));
+  tempmm.reset(GenerateNullHypreParMatrix(paramopt->GetDofOffsetsM(), paramopt->GetDofOffsetsM()));
+  tempthth.reset(GenerateNullHypreParMatrix(paramopt->GetDofOffsetsTheta(), paramopt->GetDofOffsetsTheta()));
 
+  blockmat(0, 0) = tempuu.get();
+  blockmat(1, 1) = tempmm.get();
+  blockmat(2, 2) = tempthth.get();
   blockmat(3, 3) = DsslPhi.get();
   blockmat(3, 4) = DszlPhi.get();
   blockmat(4, 3) = DszlPhi.get();

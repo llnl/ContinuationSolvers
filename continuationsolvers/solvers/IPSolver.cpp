@@ -7,8 +7,7 @@
 
 InteriorPointSolver::InteriorPointSolver(GeneralOptProblem *problem_)
     : problem(problem_), block_offsetsumlz(5), block_offsetsuml(4),
-      block_offsetsx(3), Hum(nullptr), Hmu(nullptr), Hmm(nullptr), Wmm(nullptr),
-      Ju(nullptr), Jm(nullptr), linSolver(nullptr),
+      block_offsetsx(3), Ju(nullptr), Jm(nullptr), linSolver(nullptr),
       saveLogBarrierIterates(false) {
   OptTol = 1.e-2;
   max_iter = 20;
@@ -369,7 +368,7 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
 }
 
 void InteriorPointSolver::FormIPNewtonMat(mfem::BlockVector &x,
-                                          mfem::Vector & /*l*/,
+                                          mfem::Vector & l,
                                           mfem::Vector &zl,
                                           mfem::BlockOperator &Ak,
                                           const double &delta) {
@@ -379,35 +378,114 @@ void InteriorPointSolver::FormIPNewtonMat(mfem::BlockVector &x,
   auto Humf = dynamic_cast<mfem::HypreParMatrix *>(problem->Dumf(x));
   auto Hmuf = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmuf(x));
   auto Hmmf = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmmf(x));
-  if (!fullLagrangianHessian) {
-    mfem::Vector duu(dimU);
-    duu = hessRegularization + delta;
-    std::unique_ptr<mfem::HypreParMatrix> Duu;
-    Duu.reset(
-        GenerateHypreParMatrixFromDiagonal(problem->GetDofOffsetsU(), duu));
-    Huu.reset(ParAdd(Huuf, Duu.get()));
-    Hum = Humf;
-    Hmu = Hmuf;
-    Hmm = Hmmf;
+  
+  auto Huucl = dynamic_cast<mfem::HypreParMatrix *>(problem->Duucl(x, l)); 
+  auto Humcl = dynamic_cast<mfem::HypreParMatrix *>(problem->Dumcl(x, l)); 
+  auto Hmucl = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmucl(x, l)); 
+  auto Hmmcl = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmmcl(x, l));
+	
+  mfem::Vector duu(dimU);
+  duu = hessRegularization + delta;
+  std::unique_ptr<mfem::HypreParMatrix> Duu;
+  Duu.reset(
+      GenerateHypreParMatrixFromDiagonal(problem->GetDofOffsetsU(), duu));
+  std::unique_ptr<mfem::HypreParMatrix> Huu2;
+  // (0,0), Hessian block Hmm   
+  if (!fullLagrangianHessian || !Huucl) {
+    if (Huuf) {
+      Huu.reset(ParAdd(Huuf, Duu.get()));
+    }
+    else {
+      Huu.reset(new mfem::HypreParMatrix(*Duu.get()));
+    }
   }
-  // TODO: other option for full Hessian
-
+  else  {
+    if (Huuf)
+    {
+      Huu2.reset(ParAdd(Huucl, Duu.get()));
+      Huu.reset(ParAdd(Huuf, Huu2.get()));      
+    }
+    else  {
+      Huu.reset(ParAdd(Huucl, Duu.get()));
+    }
+  }
+  
+  
   mfem::Vector DiagLogBar(dimM);
   DiagLogBar = 0.0;
   for (int ii = 0; ii < dimM; ii++) {
-    DiagLogBar(ii) = zl(ii) / (x(ii + dimU) - ml(ii)) + delta;
+    DiagLogBar(ii) = zl(ii) / (x(ii + dimU) - ml(ii)) + delta + hessRegularization;
   }
-
-  D.reset(GenerateHypreParMatrixFromDiagonal(problem->GetDofOffsetsM(),
+  std::unique_ptr<mfem::HypreParMatrix> Dmm;
+  Dmm.reset(GenerateHypreParMatrixFromDiagonal(problem->GetDofOffsetsM(),
                                              DiagLogBar));
-
-  if (Hmm) {
-    Wmm = Hmm;
-    Wmm->Add(1.0, *(D.get()));
-  } else {
-    Wmm = D.get();
+  std::unique_ptr<mfem::HypreParMatrix> Hmm2;
+  // (1,1), Hessian block Hmm   
+  if (!fullLagrangianHessian || !Hmmcl) {
+    if (Hmmf) {
+      Hmm.reset(ParAdd(Hmmf, Dmm.get()));
+    }
+    else {
+      Hmm.reset(new mfem::HypreParMatrix(*Dmm.get()));
+    }
+  }
+  else  {
+    if (Hmmf)
+    {
+      Hmm2.reset(ParAdd(Hmmcl, Dmm.get()));
+      Hmm.reset(ParAdd(Hmmf, Hmm2.get()));      
+    }
+    else  {
+      Hmm.reset(ParAdd(Hmmcl, Dmm.get()));
+    }
   }
 
+  
+  
+  // (0,1) Hessian block, Hum
+  if (!fullLagrangianHessian || !Humcl)  {
+    if (Humf)
+    {
+      Hum.reset(new mfem::HypreParMatrix(*Humf)); // deep-copy
+    }
+    else
+    {
+      Hum.reset(nullptr); // deep-copy
+    }
+  }
+  else {
+    if (Humf)
+    {
+      Hum.reset(ParAdd(Humf, Humcl));
+    }
+    else
+    {
+      Hum.reset(new mfem::HypreParMatrix(*Humcl));
+    }
+  }
+
+  
+  // (1, 0) Hessian block, Hmu
+  if (!fullLagrangianHessian || !Hmucl)  {
+    if (Hmuf)
+    {
+      Hmu.reset(new mfem::HypreParMatrix(*Hmuf)); // deep-copy
+    }
+    else
+    {
+      Hmu.reset(nullptr); // deep-copy
+    }
+  }
+  else {
+    if (Hmuf)
+    {
+      Hmu.reset(ParAdd(Hmuf, Hmucl));
+    }
+    else
+    {
+      Hmu.reset(new mfem::HypreParMatrix(*Hmucl));
+    }
+  }
   Ju = dynamic_cast<mfem::HypreParMatrix *>(problem->Duc(x));
   JuT.reset(Ju->Transpose());
   Jm = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmc(x));
@@ -419,14 +497,13 @@ void InteriorPointSolver::FormIPNewtonMat(mfem::BlockVector &x,
 
   Ak.SetBlock(0, 0, Huu.get());
   Ak.SetBlock(0, 2, JuT.get());
-  Ak.SetBlock(1, 1, Wmm);
+  Ak.SetBlock(1, 1, Hmm.get());
   Ak.SetBlock(1, 2, JmT.get());
   Ak.SetBlock(2, 0, Ju);
   Ak.SetBlock(2, 1, Jm);
-
-  if (Hum != nullptr) {
-    Ak.SetBlock(0, 1, Hum);
-    Ak.SetBlock(1, 0, Hmu);
+  if (Hum.get()) {
+    Ak.SetBlock(0, 1, Hum.get());
+    Ak.SetBlock(1, 0, Hmu.get());
   }
 }
 
@@ -482,12 +559,11 @@ void InteriorPointSolver::IPNewtonSolve(mfem::BlockVector &x, mfem::Vector &l,
         }
       }
     }
-
-    mfem::HypreParMatrix *Ah = HypreParMatrixFromBlocks(ABlockMatrix);
+    std::unique_ptr<mfem::HypreParMatrix> Ah;
+    Ah.reset(HypreParMatrixFromBlocks(ABlockMatrix));
     /* direct solve of the 3x3 IP-Newton linear system */
-    linSolver = new DirectSolver(*Ah);
+    linSolver = new DirectSolver(*Ah.get());
     linSolver->Mult(b, Xhat);
-    delete Ah;
     delete linSolver;
     linSolver = nullptr;
   }
@@ -525,11 +601,6 @@ void InteriorPointSolver::IPNewtonSolve(mfem::BlockVector &x, mfem::Vector &l,
   for (int ii = 0; ii < dimM; ii++) {
     zlhat(ii) = -1. * (zl(ii) + (zl(ii) * Xhat(ii + dimU) - mu) /
                                     (x(ii + dimU) - ml(ii)));
-  }
-
-  // free memory
-  if (Hmm) {
-    delete Wmm;
   }
 }
 

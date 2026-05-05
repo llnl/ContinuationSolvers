@@ -126,7 +126,8 @@ public:
 class OptEqProblem : public GeneralOptProblem
 {
 protected:
-    mfem::HypreParMatrix * dcdm;
+    std::unique_ptr<mfem::HypreParMatrix> dcdm;
+    std::unique_ptr<mfem::HypreParMatrix> Hmmf;
     HYPRE_BigInt * dofOffsetsC;
 public:
     OptEqProblem();
