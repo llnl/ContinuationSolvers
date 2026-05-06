@@ -418,10 +418,11 @@ mfem::Operator *ParamOptProblem::DthddEl(const mfem::Vector & /*d*/,
 }
 
 mfem::Operator *ParamOptProblem::DththdEl(const mfem::Vector & /*d*/,
-                                         const mfem::Vector & /*l*/,
-                                         const mfem::Vector & /*theta*/) {
+                                          const mfem::Vector & /*l*/,
+                                          const mfem::Vector & /*theta*/) {
   if (!HththdEl.get()) {
-    HththdEl.reset(GenerateNullHypreParMatrix(dofOffsetsTheta, dofOffsetsTheta));
+    HththdEl.reset(
+        GenerateNullHypreParMatrix(dofOffsetsTheta, dofOffsetsTheta));
   }
   return HththdEl.get();
 }
@@ -459,8 +460,8 @@ mfem::Operator *ParamOptProblem::Ddthgl(const mfem::Vector & /*d*/,
 }
 
 mfem::Operator *ParamOptProblem::Dththgl(const mfem::Vector & /*d*/,
-                                        const mfem::Vector & /*l*/,
-                                        const mfem::Vector & /*theta*/) {
+                                         const mfem::Vector & /*l*/,
+                                         const mfem::Vector & /*theta*/) {
   if (!Hththgl.get()) {
     Hththgl.reset(GenerateNullHypreParMatrix(dofOffsetsTheta, dofOffsetsTheta));
   }

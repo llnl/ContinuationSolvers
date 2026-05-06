@@ -428,8 +428,8 @@ mfem::Operator *MPECProblem::Ddg(const mfem::Vector &U) {
   return constraintJacobian.get();
 }
 
-
-// note neglecting third derivatives of constraint function in the parametrized optimization problem
+// note neglecting third derivatives of constraint function in the parametrized
+// optimization problem
 mfem::Operator *MPECProblem::Dddgl(const mfem::Vector &U,
                                    const mfem::Vector &l) {
   mfem::BlockVector Ublk(primal_blockoffsets);
@@ -453,26 +453,21 @@ mfem::Operator *MPECProblem::Dddgl(const mfem::Vector &U,
   auto temp3 = DzzlRegularizedComplementarity(
       Ublk.GetBlock(3), Ublk.GetBlock(4), lblk.GetBlock(3), compl_reg_const);
 
-
   mfem::HypreParMatrix *HuuuEl1_mat = dynamic_cast<mfem::HypreParMatrix *>(
-		  paramopt->DdddEl(Ublk.GetBlock(0), lblk.GetBlock(0), Ublk.GetBlock(2)));
+      paramopt->DdddEl(Ublk.GetBlock(0), lblk.GetBlock(0), Ublk.GetBlock(2)));
   mfem::HypreParMatrix *Huugl2_mat = dynamic_cast<mfem::HypreParMatrix *>(
-		  paramopt->Dddgl(Ublk.GetBlock(0), lblk.GetBlock(1), Ublk.GetBlock(2)));
+      paramopt->Dddgl(Ublk.GetBlock(0), lblk.GetBlock(1), Ublk.GetBlock(2)));
   MFEM_VERIFY(HuuuEl1_mat && Huugl2_mat, "CAST issue");
   std::unique_ptr<mfem::HypreParMatrix> Huucl;
   Huucl.reset(ParAdd(HuuuEl1_mat, Huugl2_mat));
-  
-  
+
   mfem::HypreParMatrix *HththuEl1_mat = dynamic_cast<mfem::HypreParMatrix *>(
-		  paramopt->DththdEl(Ublk.GetBlock(0), lblk.GetBlock(0), Ublk.GetBlock(2)));
+      paramopt->DththdEl(Ublk.GetBlock(0), lblk.GetBlock(0), Ublk.GetBlock(2)));
   mfem::HypreParMatrix *Hththgl2_mat = dynamic_cast<mfem::HypreParMatrix *>(
-		  paramopt->Dththgl(Ublk.GetBlock(0), lblk.GetBlock(1), Ublk.GetBlock(2)));
+      paramopt->Dththgl(Ublk.GetBlock(0), lblk.GetBlock(1), Ublk.GetBlock(2)));
   MFEM_VERIFY(HththuEl1_mat && Hththgl2_mat, "CAST issue");
   std::unique_ptr<mfem::HypreParMatrix> Hththcl;
   Hththcl.reset(ParAdd(HththuEl1_mat, Hththgl2_mat));
-
-
-
 
   //
   mfem::HypreParMatrix *Hpucl_mat = dynamic_cast<mfem::HypreParMatrix *>(

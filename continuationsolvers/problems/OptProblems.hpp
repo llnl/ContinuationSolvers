@@ -212,10 +212,10 @@ protected:
              // (nabla_(d,d) g) in R^(n_c x n_d x n_d)
   std::unique_ptr<mfem::HypreParMatrix>
       Hdthgl; // (nabla_(d,th) g)_(i,j,k) x l_i contracting on first index i of
-              // (nabla_(d,th) g) in R^(n_c x n_d x n_th)  
+              // (nabla_(d,th) g) in R^(n_c x n_d x n_th)
   std::unique_ptr<mfem::HypreParMatrix>
-      Hththgl; // (nabla_(th,th) g)_(i,j,k) x l_i contracting on first index i of
-               // (nabla_(th,th) g) in R^(n_c x n_th x n_th)  
+      Hththgl; // (nabla_(th,th) g)_(i,j,k) x l_i contracting on first index i
+               // of (nabla_(th,th) g) in R^(n_c x n_th x n_th)
   std::unique_ptr<mfem::HypreParMatrix>
       Hddgl2; // (nabla_(d,d) g)_(i,j,k) x l_j contracting on second index j of
               // (nabla_(d,d) g) in R^(n_c x n_d x n_d)
@@ -224,15 +224,14 @@ protected:
                // of (nabla_(th,d) g) in R^(n_c x n_d x n_th)
   std::unique_ptr<mfem::HypreParMatrix>
       HdddEl; // (nabla_(d,d,d) E)_(i,j,k) x l_k contracting on final index k
-               // of (nabla_(d,d,d) E) in R^(n_d x n_d x n_d)
+              // of (nabla_(d,d,d) E) in R^(n_d x n_d x n_d)
   std::unique_ptr<mfem::HypreParMatrix>
       HthddEl; // (nabla_(th,d,d) E)_(i,j,k) x l_k contracting on final index k
                // of (nabla_(th,d,d) E) in R^(n_th x n_d x n_d)
   std::unique_ptr<mfem::HypreParMatrix>
-      HththdEl; // (nabla_(th,th,d) E)_(i,j,k) x l_k contracting on final index k
-               // of (nabla_(th,th,d) E) in R^(n_th x n_th x n_d)
-  
-  
+      HththdEl; // (nabla_(th,th,d) E)_(i,j,k) x l_k contracting on final index
+                // k of (nabla_(th,th,d) E) in R^(n_th x n_th x n_d)
+
   void InitTheta(const mfem::Vector &theta);
 
 public:
@@ -288,37 +287,33 @@ public:
   // input:  d, an mfem::Vector
   // output: The Hessian of the energy objective at d, a pointer to a Operator
   mfem::Operator *DddE(const mfem::Vector &d) override;
-  
-  
+
   // Third-derivative contraction energy objective D^3 e / Dd^3 l
   // input:  d, an mfem::Vector,
   // input:  l, an mfem::Vector
   // input: \theta, an mfem::Vector,
-  // output: Third-derivative contraction of the energy objective at (d, theta), a pointer to an
-  // mfem::Operator
-  virtual mfem::Operator *DdddEl(const mfem::Vector &d,
-		                 const mfem::Vector &l,
+  // output: Third-derivative contraction of the energy objective at (d, theta),
+  // a pointer to an mfem::Operator
+  virtual mfem::Operator *DdddEl(const mfem::Vector &d, const mfem::Vector &l,
                                  const mfem::Vector &theta);
-  
+
   // Third-derivative contraction energy objective D^3 e / Dth Dd^2 l
   // input:  d, an mfem::Vector,
   // input:  l, an mfem::Vector
   // input: \theta, an mfem::Vector,
-  // output: Third-derivative contraction of the energy objective at (d, theta), a pointer to an
-  // mfem::Operator
-  virtual mfem::Operator *DthddEl(const mfem::Vector &d,
-		                  const mfem::Vector &l,
+  // output: Third-derivative contraction of the energy objective at (d, theta),
+  // a pointer to an mfem::Operator
+  virtual mfem::Operator *DthddEl(const mfem::Vector &d, const mfem::Vector &l,
                                   const mfem::Vector &theta);
-  
+
   // Third-derivative contraction energy objective (D^3 e / Dth^2 Dd) l
   // input:  d, an mfem::Vector,
   // input:  l, an mfem::Vector
   // input: \theta, an mfem::Vector,
-  // output: Third-derivative contraction of the energy objective at (d, theta), a pointer to an
-  // mfem::Operator
-  virtual mfem::Operator *DththdEl(const mfem::Vector &d,
-		                  const mfem::Vector &l,
-                                  const mfem::Vector &theta);
+  // output: Third-derivative contraction of the energy objective at (d, theta),
+  // a pointer to an mfem::Operator
+  virtual mfem::Operator *DththdEl(const mfem::Vector &d, const mfem::Vector &l,
+                                   const mfem::Vector &theta);
 
   // Constraint function g(d, theta) >= 0, e.g., gap function
   // input: d, an mfem::Vector,
@@ -356,7 +351,7 @@ public:
   virtual mfem::Operator *Ddthgl(const mfem::Vector &d, const mfem::Vector &l,
                                  const mfem::Vector &theta);
   virtual mfem::Operator *Dththgl(const mfem::Vector &d, const mfem::Vector &l,
-                                 const mfem::Vector &theta);
+                                  const mfem::Vector &theta);
 
   virtual mfem::Operator *Dddgl2(const mfem::Vector &d, const mfem::Vector &l,
                                  const mfem::Vector &theta);
