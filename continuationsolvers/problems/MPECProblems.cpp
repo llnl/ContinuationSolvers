@@ -428,6 +428,8 @@ mfem::Operator *MPECProblem::Ddg(const mfem::Vector &U) {
   return constraintJacobian.get();
 }
 
+
+// note neglecting third derivatives of constraint function in the parametrized optimization problem
 mfem::Operator *MPECProblem::Dddgl(const mfem::Vector &U,
                                    const mfem::Vector &l) {
   mfem::BlockVector Ublk(primal_blockoffsets);
@@ -451,24 +453,26 @@ mfem::Operator *MPECProblem::Dddgl(const mfem::Vector &U,
   auto temp3 = DzzlRegularizedComplementarity(
       Ublk.GetBlock(3), Ublk.GetBlock(4), lblk.GetBlock(3), compl_reg_const);
 
-  // TODO: add more blocks specifically the blocks:
-  // (u,  u), (u,  p), (u,  th)
-  // (p,  u)           (p,  th)
-  // (th, u), (th, p), (th, th)
-  // coming from
-  // third derivatives of parametrized optimization
-  // optimality constraints
-  // THIS IS CRITICAL AS the HypreParMatrixFromBlocks will fail
-  // if there are null row blocks
-  std::unique_ptr<mfem::HypreParMatrix> tempuu;
-  std::unique_ptr<mfem::HypreParMatrix> tempmm;
-  std::unique_ptr<mfem::HypreParMatrix> tempthth;
-  tempuu.reset(GenerateNullHypreParMatrix(paramopt->GetDofOffsetsU(),
-                                          paramopt->GetDofOffsetsU()));
-  tempmm.reset(GenerateNullHypreParMatrix(paramopt->GetDofOffsetsM(),
-                                          paramopt->GetDofOffsetsM()));
-  tempthth.reset(GenerateNullHypreParMatrix(paramopt->GetDofOffsetsTheta(),
-                                            paramopt->GetDofOffsetsTheta()));
+
+  mfem::HypreParMatrix *HuuuEl1_mat = dynamic_cast<mfem::HypreParMatrix *>(
+		  paramopt->DdddEl(Ublk.GetBlock(0), lblk.GetBlock(0), Ublk.GetBlock(2)));
+  mfem::HypreParMatrix *Huugl2_mat = dynamic_cast<mfem::HypreParMatrix *>(
+		  paramopt->Dddgl(Ublk.GetBlock(0), lblk.GetBlock(1), Ublk.GetBlock(2)));
+  MFEM_VERIFY(HuuuEl1_mat && Huugl2_mat, "CAST issue");
+  std::unique_ptr<mfem::HypreParMatrix> Huucl;
+  Huucl.reset(ParAdd(HuuuEl1_mat, Huugl2_mat));
+  
+  
+  mfem::HypreParMatrix *HththuEl1_mat = dynamic_cast<mfem::HypreParMatrix *>(
+		  paramopt->DththdEl(Ublk.GetBlock(0), lblk.GetBlock(0), Ublk.GetBlock(2)));
+  mfem::HypreParMatrix *Hththgl2_mat = dynamic_cast<mfem::HypreParMatrix *>(
+		  paramopt->Dththgl(Ublk.GetBlock(0), lblk.GetBlock(1), Ublk.GetBlock(2)));
+  MFEM_VERIFY(HththuEl1_mat && Hththgl2_mat, "CAST issue");
+  std::unique_ptr<mfem::HypreParMatrix> Hththcl;
+  Hththcl.reset(ParAdd(HththuEl1_mat, Hththgl2_mat));
+
+
+
 
   //
   mfem::HypreParMatrix *Hpucl_mat = dynamic_cast<mfem::HypreParMatrix *>(
@@ -501,9 +505,8 @@ mfem::Operator *MPECProblem::Dddgl(const mfem::Vector &U,
     blockmat(2, 1) = Hthpcl.get();
   }
 
-  blockmat(0, 0) = tempuu.get();
-  blockmat(1, 1) = tempmm.get();
-  blockmat(2, 2) = tempthth.get();
+  blockmat(0, 0) = Huucl.get();
+  blockmat(2, 2) = Hththcl.get();
   blockmat(3, 3) = DsslPhi.get();
   blockmat(3, 4) = DszlPhi.get();
   blockmat(4, 3) = DszlPhi.get();

@@ -399,6 +399,33 @@ mfem::Operator *ParamOptProblem::DddE(const mfem::Vector &d) {
   return DddE(d, theta_default);
 }
 
+mfem::Operator *ParamOptProblem::DdddEl(const mfem::Vector & /*d*/,
+                                        const mfem::Vector & /*l*/,
+                                        const mfem::Vector & /*theta*/) {
+  if (!HdddEl.get()) {
+    HdddEl.reset(GenerateNullHypreParMatrix(dofOffsetsU, dofOffsetsU));
+  }
+  return HdddEl.get();
+}
+
+mfem::Operator *ParamOptProblem::DthddEl(const mfem::Vector & /*d*/,
+                                         const mfem::Vector & /*l*/,
+                                         const mfem::Vector & /*theta*/) {
+  if (!HthddEl.get()) {
+    HthddEl.reset(GenerateNullHypreParMatrix(dofOffsetsTheta, dofOffsetsU));
+  }
+  return HthddEl.get();
+}
+
+mfem::Operator *ParamOptProblem::DththdEl(const mfem::Vector & /*d*/,
+                                         const mfem::Vector & /*l*/,
+                                         const mfem::Vector & /*theta*/) {
+  if (!HththdEl.get()) {
+    HththdEl.reset(GenerateNullHypreParMatrix(dofOffsetsTheta, dofOffsetsTheta));
+  }
+  return HththdEl.get();
+}
+
 void ParamOptProblem::g(const mfem::Vector &d, mfem::Vector &gd,
                         int &eval_err) {
   g(d, theta_default, gd, eval_err);
@@ -416,16 +443,28 @@ mfem::Operator *ParamOptProblem::Dddgl(const mfem::Vector &d,
 mfem::Operator *ParamOptProblem::Dddgl(const mfem::Vector & /*d*/,
                                        const mfem::Vector & /*l*/,
                                        const mfem::Vector & /*theta*/) {
-  MFEM_VERIFY(false, "child class must provide implementation of Dddgl method");
-  return nullptr;
+  if (!Hddgl.get()) {
+    Hddgl.reset(GenerateNullHypreParMatrix(dofOffsetsU, dofOffsetsU));
+  }
+  return Hddgl.get();
 }
 
 mfem::Operator *ParamOptProblem::Ddthgl(const mfem::Vector & /*d*/,
                                         const mfem::Vector & /*l*/,
                                         const mfem::Vector & /*theta*/) {
-  MFEM_VERIFY(false,
-              "child class must provide implementation of Dddthl method");
-  return nullptr;
+  if (!Hdthgl.get()) {
+    Hdthgl.reset(GenerateNullHypreParMatrix(dofOffsetsU, dofOffsetsTheta));
+  }
+  return Hdthgl.get();
+}
+
+mfem::Operator *ParamOptProblem::Dththgl(const mfem::Vector & /*d*/,
+                                        const mfem::Vector & /*l*/,
+                                        const mfem::Vector & /*theta*/) {
+  if (!Hththgl.get()) {
+    Hththgl.reset(GenerateNullHypreParMatrix(dofOffsetsTheta, dofOffsetsTheta));
+  }
+  return Hththgl.get();
 }
 
 mfem::Operator *ParamOptProblem::Dddgl2(const mfem::Vector & /*d*/,
