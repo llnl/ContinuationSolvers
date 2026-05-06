@@ -467,6 +467,39 @@ mfem::Operator *MPECProblem::Dddgl(const mfem::Vector &U,
   tempmm.reset(GenerateNullHypreParMatrix(paramopt->GetDofOffsetsM(), paramopt->GetDofOffsetsM()));
   tempthth.reset(GenerateNullHypreParMatrix(paramopt->GetDofOffsetsTheta(), paramopt->GetDofOffsetsTheta()));
 
+  // 
+  mfem::HypreParMatrix * Hpucl_mat = dynamic_cast<mfem::HypreParMatrix*>(paramopt->Dddgl2(Ublk.GetBlock(0), lblk.GetBlock(0), Ublk.GetBlock(2)));
+  std::unique_ptr<mfem::HypreParMatrix> Hpucl;
+  std::unique_ptr<mfem::HypreParMatrix> Hupcl;
+  if (Hpucl_mat)
+  {
+     Hpucl.reset(new mfem::HypreParMatrix(*Hpucl_mat)); // deep copy
+     // scale rows as the block is -1.0 * (nabla_(u,u)g) l
+     mfem::Vector scale(Hpucl_mat->Height()); scale = -1.0;
+     Hpucl->ScaleRows(scale);
+     Hupcl.reset(Hpucl->Transpose());
+     blockmat(1, 0) = Hpucl.get();
+     blockmat(0, 1) = Hupcl.get(); 
+  }
+  
+  mfem::HypreParMatrix * Hpthcl_mat = dynamic_cast<mfem::HypreParMatrix*>(paramopt->Dthdgl2(Ublk.GetBlock(0), lblk.GetBlock(0), Ublk.GetBlock(2)));
+  std::unique_ptr<mfem::HypreParMatrix> Hpthcl;
+  std::unique_ptr<mfem::HypreParMatrix> Hthpcl;
+  if (Hpthcl_mat)
+  {
+     Hpthcl.reset(new mfem::HypreParMatrix(*Hpthcl_mat)); // deep copy
+     // scale rows as the block is -1.0 * (nabla_(th,u)g) l
+     mfem::Vector scale(Hpthcl_mat->Height()); scale = -1.0;
+     Hpthcl->ScaleRows(scale);
+     Hthpcl.reset(Hpthcl->Transpose());
+     blockmat(1, 2) = Hpthcl.get();
+     blockmat(2, 1) = Hthpcl.get(); 
+  }
+
+
+
+
+
   blockmat(0, 0) = tempuu.get();
   blockmat(1, 1) = tempmm.get();
   blockmat(2, 2) = tempthth.get();

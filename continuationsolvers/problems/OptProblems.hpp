@@ -196,7 +196,9 @@ protected:
     bool theta_initialized = false;
     int dimTheta = 0;
     int dimThetaglb; 
-    HYPRE_BigInt * dofOffsetsTheta = nullptr;    
+    HYPRE_BigInt * dofOffsetsTheta = nullptr;
+    std::unique_ptr<mfem::HypreParMatrix> Hddgl2; // (nabla_(u,u) g)_(i,j,k) x l_j contracting on second index j of (nabla_(u,u) g) in R^(n_c x n_u x n_u)    
+    std::unique_ptr<mfem::HypreParMatrix> Hthdgl2; // (nabla_(th,u) g)_(i,j,k) x l_j contracting on second index j of (nabla_(th,u) g) in R^(n_c x n_u x n_th)    
     void InitTheta(const mfem::Vector & theta);
 public:
     ParamOptProblem();
@@ -276,7 +278,9 @@ public:
     
     mfem::Operator * Dddgl(const mfem::Vector & d, const mfem::Vector &l) override;
     virtual mfem::Operator * Ddthgl(const mfem::Vector &d, const mfem::Vector &l, const mfem::Vector & theta);
-    
+   
+    virtual mfem::Operator * Dddgl2(const mfem::Vector & d, const mfem::Vector &l, const mfem::Vector & theta); 
+    virtual mfem::Operator * Dthdgl2(const mfem::Vector & d, const mfem::Vector &l, const mfem::Vector & theta); 
     virtual ~ParamOptProblem();
 };
 

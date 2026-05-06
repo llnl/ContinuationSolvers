@@ -461,10 +461,28 @@ mfem::Operator * ParamOptProblem::Dddgl(const mfem::Vector &/*d*/, const mfem::V
    return nullptr;
 }
 
-mfem::Operator * ParamOptProblem::Ddthgl(const mfem::Vector &d, const mfem::Vector &l, const mfem::Vector & theta)
+mfem::Operator * ParamOptProblem::Ddthgl(const mfem::Vector &/*d*/, const mfem::Vector &/*l*/, const mfem::Vector & /*theta*/)
 {
    MFEM_VERIFY(false, "child class must provide implementation of Dddthl method"); 
    return nullptr;
+}
+
+mfem::Operator * ParamOptProblem::Dddgl2(const mfem::Vector &/*d*/, const mfem::Vector &/*l*/, const mfem::Vector &/*theta*/)
+{
+   if (!Hddgl2.get())
+   {
+      Hddgl2.reset(GenerateNullHypreParMatrix(dofOffsetsM, dofOffsetsU));  
+   }
+   return Hddgl2.get();
+}
+
+mfem::Operator * ParamOptProblem::Dthdgl2(const mfem::Vector &/*d*/, const mfem::Vector &/*l*/, const mfem::Vector &/*theta*/)
+{
+   if (!Hthdgl2.get())
+   {
+      Hthdgl2.reset(GenerateNullHypreParMatrix(dofOffsetsM, dofOffsetsTheta));  
+   }
+   return Hthdgl2.get();
 }
 
 ParamOptProblem::~ParamOptProblem() 
