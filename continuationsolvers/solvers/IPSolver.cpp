@@ -377,10 +377,19 @@ void InteriorPointSolver::FormIPNewtonMat(mfem::BlockVector &x, mfem::Vector &l,
   auto Hmuf = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmuf(x));
   auto Hmmf = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmmf(x));
 
-  auto Huucl = dynamic_cast<mfem::HypreParMatrix *>(problem->Duucl(x, l));
-  auto Humcl = dynamic_cast<mfem::HypreParMatrix *>(problem->Dumcl(x, l));
-  auto Hmucl = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmucl(x, l));
-  auto Hmmcl = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmmcl(x, l));
+  mfem::HypreParMatrix * Huucl = nullptr;
+  mfem::HypreParMatrix * Humcl = nullptr;
+  mfem::HypreParMatrix * Hmucl = nullptr;
+  mfem::HypreParMatrix * Hmmcl = nullptr;
+  if (fullLagrangianHessian)
+  {
+     Huucl = dynamic_cast<mfem::HypreParMatrix *>(problem->Duucl(x, l));
+     Humcl = dynamic_cast<mfem::HypreParMatrix *>(problem->Dumcl(x, l));
+     Hmucl = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmucl(x, l));
+     Hmmcl = dynamic_cast<mfem::HypreParMatrix *>(problem->Dmmcl(x, l));
+  }
+
+
 
   mfem::Vector duu(dimU);
   duu = hessRegularization + delta;

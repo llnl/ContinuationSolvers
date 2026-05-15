@@ -173,6 +173,82 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
    HdthE.reset(GenerateNullHypreParMatrix(dofOffsetsU, dofOffsetsU));
 }
 
+// Obstacle Problem, no essential boundary conditions enforced
+// Hessian of energy term is K + M (stiffness + mass)
+ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_, 
+                                       mfem_fun_ptr_type fSource,
+                                       mfem_fun_ptr_type obstacleSource,
+				       mfem::Array<int> tdof_list,
+				       mfem::Vector &ud) : 
+                                       ParamOptProblem()
+{
+   Vh = fesU_;
+   dimU = Vh->GetTrueVSize();
+   dimM = dimU - tdof_list.Size();
+   auto tempUOffsets = offsetsFromLocalSizes(dimU, MPI_COMM_WORLD);
+   auto tempMOffsets = offsetsFromLocalSizes(dimM, MPI_COMM_WORLD);
+   Init(tempUOffsets, tempMOffsets);
+   delete[] tempUOffsets;
+   delete[] tempMOffsets;
+   HYPRE_Int dofMask[dimU];
+   for (int i = 0; i < dimU; i++)
+   {
+      dofMask[i] = 1;
+   }
+   for (int i = 0; i < tdof_list.Size(); i++)
+   {
+     dofMask[tdof_list[i]] = 0;
+   }
+   R.reset(GenerateProjector(dofOffsetsM, dofOffsetsU, dofMask));
+   P.reset(R->Transpose());
+   Jd.reset(GenerateProjector(dofOffsetsM, dofOffsetsU, dofMask));
+   
+
+
+   Kform.reset(new mfem::ParBilinearForm(Vh));
+   Kform->AddDomainIntegrator(new mfem::MassIntegrator);
+   Kform->AddDomainIntegrator(new mfem::DiffusionIntegrator);
+   Kform->Assemble();
+   Kform->Finalize();
+   Kform->FormSystemMatrix(tdof_list, K);
+   mfem::FunctionCoefficient fcoeff(fSource);
+   fform.reset(new mfem::ParLinearForm(Vh));
+   fform->AddDomainIntegrator(new mfem::DomainLFIntegrator(fcoeff));
+   fform->Assemble();
+   f.SetSize(dimU);
+   mfem::Vector F(Vh->GetTrueVSize()); F = 0.0;
+   fform->ParallelAssemble(F);
+   f.Set(1.0, F);
+   for (int i = 0; i < tdof_list.Size(); i++)
+   {
+      f(tdof_list[i]) = 0.0;
+   }
+
+   // provided obstacle will be default param value
+   theta_default.SetSize(dimM);
+   theta_default = 0.0;
+   mfem::FunctionCoefficient theta_fc(obstacleSource);
+   mfem::ParGridFunction theta_gf(Vh);
+   theta_gf.ProjectCoefficient(theta_fc);
+   mfem::Vector theta_tmp(Vh->GetTrueVSize()); theta_tmp = 0.0;
+   theta_gf.GetTrueDofs(theta_tmp);
+   R->Mult(theta_tmp, theta_default);
+   
+   
+   mfem::Vector theta_default_copy(dimM);
+   theta_default_copy.Set(1.0, theta_default);
+   InitTheta(theta_default_copy);
+   
+   mfem::Vector iDiag(dimU); iDiag = 1.0;
+   iDiag = -1.0;
+   Jth.reset(GenerateHypreParMatrixFromDiagonal(dofOffsetsM, iDiag));
+
+   Hddgl.reset(GenerateNullHypreParMatrix(dofOffsetsU, dofOffsetsU));
+   Hdthgl.reset(GenerateNullHypreParMatrix(dofOffsetsU, dofOffsetsM));
+   HdthE.reset(GenerateNullHypreParMatrix(dofOffsetsU, dofOffsetsM));
+}
+
+
 double ParamObstacleProblem::E(const mfem::Vector &d, const mfem::Vector & theta, int & eval_err)
 {
    MFEM_VERIFY(d.Size() == K.Width(), "ParamObstacleProblem::E - Inconsistent dimensions");

@@ -150,9 +150,6 @@ OptProblem::~OptProblem() {
 ReducedOptProblem::ReducedOptProblem(OptProblem *problem_,
                                      HYPRE_Int *constraintMask) {
   problem = problem_;
-  J = nullptr;
-  P = nullptr;
-
   HYPRE_BigInt *dofOffsets = problem->GetDofOffsetsU();
 
   // given a constraint mask, lets update the constraintOffsets
@@ -171,85 +168,159 @@ ReducedOptProblem::ReducedOptProblem(OptProblem *problem_,
   HYPRE_BigInt *constraintOffsets;
   constraintOffsets = offsetsFromLocalSizes(nProblemConstraints);
 
-  P = GenerateProjector(constraintOffsets_reduced, constraintOffsets,
+  auto Rc_mat = GenerateProjector(constraintOffsets_reduced, constraintOffsets,
                         constraintMask);
-
+  Rc.reset(Rc_mat);
+  Pc.reset(Rc->Transpose());
+  
+  // now set dof restriction
+  // identity mapping
+  int nDofs = problem->GetDimU();
+  HYPRE_Int dofMask[nDofs];
+  for (int i = 0; i < nDofs; i++)
+  {
+     dofMask[i] = 1;
+  }
+  auto Rdof_mat = GenerateProjector(dofOffsets, dofOffsets, dofMask);
+  Rdof.reset(Rdof_mat);
+  Pdof.reset(Rdof->Transpose());
+  
+  
   Init(dofOffsets, constraintOffsets_reduced);
   delete[] constraintOffsets_reduced;
   delete[] constraintOffsets;
+  dDC.SetSize(nDofs); dDC = 0.1;
+  gradEfull.SetSize(nDofs); gradEfull = 0.0;
+  dFull.SetSize(nDofs); dFull = 0.0;
+  gfull.SetSize(problem->GetDimM()); gfull = 0.0;
+}
+
+
+ReducedOptProblem::ReducedOptProblem(OptProblem *problem_,
+		                     HYPRE_Int *dofMask,
+                                     HYPRE_Int *constraintMask) {
+  problem = problem_;
+  //HYPRE_BigInt *dofOffsets = problem->GetDofOffsetsU();
+
+  // given a constraint mask, lets update the constraintOffsets
+  // from the original problem
+  int nLocConstraints = 0;
+  int nProblemConstraints = problem->GetDimM();
+  for (int i = 0; i < nProblemConstraints; i++) {
+    if (constraintMask[i] == 1) {
+      nLocConstraints += 1;
+    }
+  }
+
+
+
+  HYPRE_BigInt *constraintOffsets_reduced;
+  constraintOffsets_reduced = offsetsFromLocalSizes(nLocConstraints);
+
+  HYPRE_BigInt *constraintOffsets;
+  constraintOffsets = offsetsFromLocalSizes(nProblemConstraints);
+
+  auto Rc_mat = GenerateProjector(constraintOffsets_reduced, constraintOffsets,
+                        constraintMask);
+  Rc.reset(Rc_mat);
+  Pc.reset(Rc->Transpose());
+  
+  // now set dof restriction
+  int nLocDofs = 0;
+  int nProblemDofs = problem->GetDimU();
+  for (int i = 0; i < nProblemDofs; i++) {
+    if (dofMask[i] == 1) {
+      nLocDofs += 1;
+    }
+  }
+  HYPRE_BigInt *dofOffsets_reduced;
+  dofOffsets_reduced = offsetsFromLocalSizes(nLocDofs);
+  HYPRE_BigInt *dofOffsets;
+  dofOffsets = offsetsFromLocalSizes(nProblemDofs);
+  auto Rdof_mat = GenerateProjector(dofOffsets_reduced, dofOffsets, dofMask);
+  Rdof.reset(Rdof_mat);
+  Pdof.reset(Rdof->Transpose());
+  
+  
+  Init(dofOffsets_reduced, constraintOffsets_reduced);
+  delete[] constraintOffsets_reduced;
+  delete[] constraintOffsets;
+  delete[] dofOffsets_reduced;
+  delete[] dofOffsets;
+  dDC.SetSize(nProblemDofs); dDC = 0.0;
+  gradEfull.SetSize(nProblemDofs); gradEfull = 0.0;
+  dFull.SetSize(nProblemDofs); dFull = 0.0;
+  gfull.SetSize(nProblemConstraints); gfull = 0.0;
 }
 
 ReducedOptProblem::ReducedOptProblem(OptProblem *problem_,
                                      mfem::HypreParVector &constraintMask) {
-  problem = problem_;
-  J = nullptr;
-  P = nullptr;
-
-  HYPRE_BigInt *dofOffsets = problem->GetDofOffsetsU();
-
-  // given a constraint mask, lets update the constraintOffsets
-  // from the original problem
-  int nLocConstraints = 0;
+  
+  
+  HYPRE_Int intConstraintMask[problem->GetDimM()];
   int nProblemConstraints = problem->GetDimM();
   for (int i = 0; i < nProblemConstraints; i++) {
-    if (constraintMask[i] == 1) {
-      nLocConstraints += 1;
+    intConstraintMask[i] = 0;
+    if (constraintMask[i] == 1)
+    {
+      intConstraintMask[i] = 1;
     }
   }
-
-  HYPRE_BigInt *constraintOffsets_reduced;
-  constraintOffsets_reduced = offsetsFromLocalSizes(nLocConstraints);
-
-  HYPRE_BigInt *constraintOffsets;
-  constraintOffsets = offsetsFromLocalSizes(nProblemConstraints);
-
-  P = GenerateProjector(constraintOffsets_reduced, constraintOffsets,
-                        constraintMask);
-
-  Init(dofOffsets, constraintOffsets_reduced);
-  delete[] constraintOffsets_reduced;
-  delete[] constraintOffsets;
+  ReducedOptProblem(problem_, intConstraintMask);  
 }
 
 // energy objective E(d)
 double ReducedOptProblem::E(const mfem::Vector &d, int &eval_err) {
-  return problem->E(d, eval_err);
+  Pdof->Mult(d, dFull);
+  dFull.Add(1.0, dDC);
+  return problem->E(dFull, eval_err);
 }
 
 // gradient of energy objective
 void ReducedOptProblem::DdE(const mfem::Vector &d, mfem::Vector &gradE) {
-  problem->DdE(d, gradE);
+  Pdof->Mult(d, dFull);
+  dFull.Add(1.0, dDC);
+  problem->DdE(dFull, gradEfull);
+  MFEM_VERIFY(Rdof->Height() == gradE.Size(), "size issue");
+  MFEM_VERIFY(Rdof->Width() == gradEfull.Size(), "size issue");
+  Rdof->Mult(gradEfull, gradE);
 }
 
 mfem::Operator *ReducedOptProblem::DddE(const mfem::Vector &d) {
-  return problem->DddE(d);
+  Pdof->Mult(d, dFull);
+  dFull.Add(1.0, dDC);
+  mfem::HypreParMatrix * Hfull = dynamic_cast<mfem::HypreParMatrix *>(problem->DddE(dFull));
+  MFEM_VERIFY(Hfull, "cast failure");
+  H.reset(RAP(Hfull, Pdof.get())); 
+  MFEM_VERIFY(H->Height() == dimU, "size issue");
+  return H.get();
 }
 
 void ReducedOptProblem::g(const mfem::Vector &d, mfem::Vector &gd,
                           int &eval_err) {
-  mfem::Vector gdfull(problem->GetDimM());
-  gdfull = 0.0;
-  problem->g(d, gdfull, eval_err);
-  P->Mult(gdfull, gd);
+  Pdof->Mult(d, dFull);
+  dFull.Add(1.0, dDC);
+  problem->g(dFull, gfull, eval_err);
+  Rc->Mult(gfull, gd);
 }
 
 mfem::Operator *ReducedOptProblem::Ddg(const mfem::Vector &d) {
-  mfem::Operator *Jfull = problem->Ddg(d);
-  auto Jfull_hypre = dynamic_cast<mfem::HypreParMatrix *>(Jfull);
-  MFEM_VERIFY(Jfull_hypre, "expecting Ddg to be a HypreParMatrix");
-  if (J) {
-    delete J;
-    J = nullptr;
-  }
-  J = ParMult(P, Jfull_hypre, true);
-  return J;
+  Pdof->Mult(d, dFull);
+  dFull.Add(1.0, dDC);
+  mfem::HypreParMatrix *Jfull = dynamic_cast<mfem::HypreParMatrix *>(problem->Ddg(dFull));
+  MFEM_VERIFY(Jfull, "cast failure");
+
+  J.reset(RAP(Pc.get(), Jfull, Pdof.get()));
+  return J.get();
 }
 
+void ReducedOptProblem::ProlongateToFullDofs(const mfem::Vector &d, mfem::Vector &df)
+{
+  Pdof->Mult(d, df);
+}	
+
+
 ReducedOptProblem::~ReducedOptProblem() {
-  delete P;
-  if (J) {
-    delete J;
-  }
 }
 
 // min E(d) s.t. g(d) = 0
@@ -487,7 +558,221 @@ mfem::Operator *ParamOptProblem::Dthdgl2(const mfem::Vector & /*d*/,
 }
 
 ParamOptProblem::~ParamOptProblem() {
-  if (!dofOffsetsTheta) {
+  if (dofOffsetsTheta) {
     delete[] dofOffsetsTheta;
   }
 }
+
+ReducedParamOptProblem::ReducedParamOptProblem(ParamOptProblem * problem_, mfem::Array<int> tdof_list)
+{
+  problem = problem_;
+  dimU = problem_->GetDimU() - tdof_list.Size();
+  dimTheta = problem_->GetDimTheta() - tdof_list.Size(); 
+  auto tmp_offsets = offsetsFromLocalSizes(dimU, MPI_COMM_WORLD);
+  Init(tmp_offsets, tmp_offsets);
+  delete[] tmp_offsets;
+  HYPRE_Int * mask = new HYPRE_Int[problem_->GetDimU()];
+  for (int i = 0; i < problem_->GetDimU(); i++)
+  {
+     mask[i] = 1;
+  }
+  for (int i = 0; i < tdof_list.Size(); i++)
+  {
+    mask[tdof_list[i]] = 0;
+  }
+
+
+  MFEM_VERIFY(problem_->GetDimU() == problem_->GetDimM(), "not setup for general case");
+  MFEM_VERIFY(problem_->GetDimU() == problem_->GetDimTheta(), "not setup for general case");
+
+  auto Rdof_mat = GenerateProjector(dofOffsetsU, problem->GetDofOffsetsU(), mask);
+  Rdof.reset(Rdof_mat);
+  auto Pdof_mat = Rdof_mat->Transpose();
+  Pdof.reset(Pdof_mat);
+  auto Rc_mat = GenerateProjector(dofOffsetsM, problem->GetDofOffsetsM(), mask);
+  Rc.reset(Rc_mat);
+  auto Pc_mat = Rc_mat->Transpose();
+  Pc.reset(Pc_mat);
+
+  mfem::Vector theta_init(dimU); theta_init = 0.0;
+  Rc->Mult(problem->GetTheta(), theta_init);  
+  InitTheta(theta_init);
+
+  dDC.SetSize(problem->GetDimU()); dDC = 0.0;
+  dFull.SetSize(problem->GetDimU()); dFull = 0.0;
+  gradEFull.SetSize(problem->GetDimU()); gradEFull = 0.0;
+  gFull.SetSize(problem->GetDimM()); gFull = 0.0;
+  thetaFull.SetSize(problem->GetDimM()); thetaFull = 0.0;
+}
+
+
+double ReducedParamOptProblem::E(const mfem::Vector &d, const mfem::Vector &theta,
+                   int &eval_err)
+{
+   Pdof->Mult(d, dFull);
+   dFull.Add(1.0, dDC);
+   Pc->Mult(theta, thetaFull);
+   return problem->E(dFull, thetaFull, eval_err);
+}
+
+
+void ReducedParamOptProblem::DdE(const mfem::Vector &d, const mfem::Vector &theta,
+                        mfem::Vector &gradE)
+{
+   Pdof->Mult(d, dFull);
+   dFull.Add(1.0, dDC);
+   Pc->Mult(theta, thetaFull);
+   problem->DdE(dFull, thetaFull, gradEFull);
+   Rdof->Mult(gradEFull, gradE);
+}
+
+
+mfem::Operator * ReducedParamOptProblem::DddE(const mfem::Vector &d, const mfem::Vector &theta)
+{
+   Pdof->Mult(d, dFull);
+   dFull.Add(1.0, dDC);
+   Pc->Mult(theta, thetaFull);
+   mfem::HypreParMatrix * Hddfull = dynamic_cast<mfem::HypreParMatrix*>(problem->DddE(dFull, thetaFull));
+   MFEM_VERIFY(Hddfull, "cast failure");
+   HddE.reset(RAP(Hddfull, Pdof.get()));
+   return HddE.get(); 
+}
+
+mfem::Operator * ReducedParamOptProblem::DdthE(const mfem::Vector &d, const mfem::Vector &theta)
+{
+   Pdof->Mult(d, dFull);
+   dFull.Add(1.0, dDC);
+   Pc->Mult(theta, thetaFull);
+   mfem::HypreParMatrix * Hdthfull = dynamic_cast<mfem::HypreParMatrix*>(problem->DdthE(dFull, thetaFull));
+   MFEM_VERIFY(Hdthfull, "cast failure");
+   HdthE.reset(RAP(Hdthfull, Pdof.get()));
+   return HdthE.get(); 
+}
+
+
+void ReducedParamOptProblem::g(const mfem::Vector &d, const mfem::Vector &theta,
+                        mfem::Vector &gd, int &eval_err)
+{
+   Pdof->Mult(d, dFull);
+   dFull.Add(1.0, dDC);
+   Pc->Mult(theta, thetaFull);
+   problem->g(dFull, thetaFull, gFull, eval_err);
+   Rc->Mult(gFull, gd);
+}
+
+mfem::Operator * ReducedParamOptProblem::Ddg(const mfem::Vector &d, const mfem::Vector &theta)
+{
+   Pdof->Mult(d, dFull);
+   dFull.Add(1.0, dDC);
+   Pc->Mult(theta, thetaFull);
+   mfem::HypreParMatrix *Jfull = dynamic_cast<mfem::HypreParMatrix *>(problem->Ddg(dFull, thetaFull));
+   MFEM_VERIFY(Jfull, "cast failure");
+
+   Jdg.reset(RAP(Pc.get(), Jfull, Pdof.get()));
+   return Jdg.get();
+}
+
+
+mfem::Operator * ReducedParamOptProblem::Dthg(const mfem::Vector &d, const mfem::Vector &theta)
+{
+   Pdof->Mult(d, dFull);
+   dFull.Add(1.0, dDC);
+   Pc->Mult(theta, thetaFull);
+   mfem::HypreParMatrix *Jfull = dynamic_cast<mfem::HypreParMatrix *>(problem->Dthg(dFull, thetaFull));
+   MFEM_VERIFY(Jfull, "cast failure");
+
+   Jthg.reset(RAP(Pc.get(), Jfull, Pdof.get()));
+   return Jthg.get();
+}
+
+void ReducedParamOptProblem::ProlongateToFullDofs(const mfem::Vector &d, mfem::Vector &df)
+{
+  Pdof->Mult(d, df);
+}	
+
+ReducedParamOptProblem::~ReducedParamOptProblem() {
+}
+
+
+
+
+#if 0
+// work in progress
+// TODO: can we do something that is more compatible with 
+//
+ReducedOptEqProblem::ReducedOptEqProblem(OptEqProblem *problem_,
+		                         HYPRE_Int *dofMask,
+                                         HYPRE_Int *constraintMask) {
+  problem = problem_;
+  HYPRE_BigInt *dofOffsets = problem->GetDofOffsetsU();
+
+  // given a constraint mask, lets update the constraintOffsets
+  // from the original problem
+  int nLocConstraints = 0;
+  for (int i = 0; i < nProblemConstraints; i++) {
+    if (constraintMask[i] == 1) {
+      nLocConstraints += 1;
+    }
+  }
+  HYPRE_BigInt *constraintOffsets_reduced;
+  constraintOffsets_reduced = offsetsFromLocalSizes(nLocConstraints);
+
+  int nProblemConstraints = problem->GetDimC();
+  HYPRE_BigInt *constraintOffsets;
+  constraintOffsets = offsetsFromLocalSizes(nProblemConstraints);
+
+  auto Rc_mat = GenerateProjector(constraintOffsets_reduced, constraintOffsets,
+		                  constraintMask); 
+  Rc.reset(Rc_mat);
+
+
+
+
+
+  Init(dofOffsets, constraintOffsets_reduced);
+  delete[] constraintOffsets_reduced;
+  delete[] constraintOffsets;
+}
+
+// energy objective E(d)
+double ReducedOptProblem::E(const mfem::Vector &d, int &eval_err) {
+  return problem->E(d, eval_err);
+}
+
+// gradient of energy objective
+void ReducedOptProblem::DdE(const mfem::Vector &d, mfem::Vector &gradE) {
+  problem->DdE(d, gradE);
+}
+
+mfem::Operator *ReducedOptProblem::DddE(const mfem::Vector &d) {
+  return problem->DddE(d);
+}
+
+void ReducedOptProblem::g(const mfem::Vector &d, mfem::Vector &gd,
+                          int &eval_err) {
+  mfem::Vector gdfull(problem->GetDimM());
+  gdfull = 0.0;
+  problem->g(d, gdfull, eval_err);
+  P->Mult(gdfull, gd);
+}
+
+mfem::Operator *ReducedOptProblem::Ddg(const mfem::Vector &d) {
+  mfem::Operator *Jfull = problem->Ddg(d);
+  auto Jfull_hypre = dynamic_cast<mfem::HypreParMatrix *>(Jfull);
+  MFEM_VERIFY(Jfull_hypre, "expecting Ddg to be a HypreParMatrix");
+  if (J) {
+    delete J;
+    J = nullptr;
+  }
+  J = ParMult(P, Jfull_hypre, true);
+  return J;
+}
+
+ReducedOptProblem::~ReducedOptProblem() {
+  delete P;
+  if (J) {
+    delete J;
+  }
+}
+
+#endif // ReducedOptEqProblem

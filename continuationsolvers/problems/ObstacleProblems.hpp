@@ -43,11 +43,14 @@ protected:
    std::unique_ptr<mfem::HypreParMatrix> Jth;
    std::unique_ptr<mfem::HypreParMatrix> Hddgl;  // Hessian of (gap^T Lagrange multiplier) D^2 / Dd^2
    std::unique_ptr<mfem::HypreParMatrix> Hdthgl; // Hessian of (gap^T Lagrange multiplier) D^2 / (Dd Dth)
-   std::unique_ptr<mfem::HypreParMatrix> HdthE; // mixed Hessian of (objective) D^2 / (Dd Dth)    
+   std::unique_ptr<mfem::HypreParMatrix> HdthE; // mixed Hessian of (objective) D^2 / (Dd Dth)   
+   std::unique_ptr<mfem::HypreParMatrix> P; // prolongation
+   std::unique_ptr<mfem::HypreParMatrix> R; // restriction
    mfem::ParFiniteElementSpace* Vh = nullptr; // non-owning
    mfem::Vector f;
 public :
    ParamObstacleProblem(mfem::ParFiniteElementSpace*, mfem_fun_ptr_type fSource, mfem_fun_ptr_type obstacleSource);
+   ParamObstacleProblem(mfem::ParFiniteElementSpace*, mfem_fun_ptr_type fSource, mfem_fun_ptr_type obstacleSource, mfem::Array<int> tdof_list, mfem::Vector &);
    double E(const mfem::Vector &d, const mfem::Vector &theta, int &eval_err) override;
    void DdE(const mfem::Vector &d, const mfem::Vector &theta, mfem::Vector &gradE) override;
    mfem::Operator* DddE(const mfem::Vector &d, const mfem::Vector &theta) override;
