@@ -568,10 +568,11 @@ ReducedParamOptProblem::ReducedParamOptProblem(ParamOptProblem * problem_, mfem:
   problem = problem_;
   dimU = problem_->GetDimU() - tdof_list.Size();
   dimTheta = problem_->GetDimTheta() - tdof_list.Size(); 
-  auto tmp_offsets = offsetsFromLocalSizes(dimU, MPI_COMM_WORLD);
-  Init(tmp_offsets, tmp_offsets);
-  delete[] tmp_offsets;
-  HYPRE_Int * mask = new HYPRE_Int[problem_->GetDimU()];
+  std::unique_ptr<HYPRE_BigInt[]> tmp_offsets;
+  
+  tmp_offsets.reset(offsetsFromLocalSizes(dimU, MPI_COMM_WORLD));
+  Init(tmp_offsets.get(), tmp_offsets.get());
+  auto mask = std::make_unique<HYPRE_Int[]>(problem_->GetDimU());
   for (int i = 0; i < problem_->GetDimU(); i++)
   {
      mask[i] = 1;
@@ -585,12 +586,11 @@ ReducedParamOptProblem::ReducedParamOptProblem(ParamOptProblem * problem_, mfem:
   MFEM_VERIFY(problem_->GetDimU() == problem_->GetDimM(), "not setup for general case");
   MFEM_VERIFY(problem_->GetDimU() == problem_->GetDimTheta(), "not setup for general case");
 
-  auto Rdof_mat = GenerateProjector(dofOffsetsU, problem->GetDofOffsetsU(), mask);
+  auto Rdof_mat = GenerateProjector(dofOffsetsU, problem->GetDofOffsetsU(), mask.get());
   Rdof.reset(Rdof_mat);
   auto Pdof_mat = Rdof_mat->Transpose();
   Pdof.reset(Pdof_mat);
-  auto Rc_mat = GenerateProjector(dofOffsetsM, problem->GetDofOffsetsM(), mask);
-  delete[] mask;
+  auto Rc_mat = GenerateProjector(dofOffsetsM, problem->GetDofOffsetsM(), mask.get());
   Rc.reset(Rc_mat);
   auto Pc_mat = Rc_mat->Transpose();
   Pc.reset(Pc_mat);
