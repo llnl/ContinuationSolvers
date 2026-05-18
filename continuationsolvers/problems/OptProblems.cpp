@@ -590,6 +590,7 @@ ReducedParamOptProblem::ReducedParamOptProblem(ParamOptProblem * problem_, mfem:
   auto Pdof_mat = Rdof_mat->Transpose();
   Pdof.reset(Pdof_mat);
   auto Rc_mat = GenerateProjector(dofOffsetsM, problem->GetDofOffsetsM(), mask);
+  delete[] mask;
   Rc.reset(Rc_mat);
   auto Pc_mat = Rc_mat->Transpose();
   Pc.reset(Pc_mat);
