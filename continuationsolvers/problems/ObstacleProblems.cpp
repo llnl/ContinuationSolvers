@@ -128,7 +128,8 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
     : ParamOptProblem() {
   Vh = fesU_;
   Init(Vh->GetTrueDofOffsets(), Vh->GetTrueDofOffsets());
-
+  uDC.SetSize(dimU);
+  uDC = 0.0;
   Kform.reset(new mfem::ParBilinearForm(Vh));
   Kform->AddDomainIntegrator(new mfem::MassIntegrator);
   Kform->AddDomainIntegrator(new mfem::DiffusionIntegrator);
@@ -164,7 +165,8 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
   HdthE.reset(GenerateNullHypreParMatrix(dofOffsetsU, dofOffsetsU));
 }
 
-// Obstacle Problem, no essential boundary conditions enforced
+
+// Parametrized Obstacle Problem, essential boundary conditions enforced
 // Hessian of energy term is K + M (stiffness + mass)
 ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
                                            mfem_fun_ptr_type fSource,
@@ -174,6 +176,8 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
     : ParamOptProblem() {
   Vh = fesU_;
   dimU = Vh->GetTrueVSize();
+  uDC.SetSize(dimU); uDC = 0.0;
+  MFEM_VERIFY(ud.Size() == dimU, "ud is not correct size");
   dimM = dimU - tdof_list.Size();
   auto tempUOffsets = offsetsFromLocalSizes(dimU, MPI_COMM_WORLD);
   auto tempMOffsets = offsetsFromLocalSizes(dimM, MPI_COMM_WORLD);
@@ -186,6 +190,7 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
   }
   for (int i = 0; i < tdof_list.Size(); i++) {
     dofMask[tdof_list[i]] = 0;
+    uDC(tdof_list[i]) = ud(tdof_list[i]);
   }
   R.reset(GenerateProjector(dofOffsetsM, dofOffsetsU, dofMask));
   P.reset(R->Transpose());
@@ -202,13 +207,8 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
   fform->AddDomainIntegrator(new mfem::DomainLFIntegrator(fcoeff));
   fform->Assemble();
   f.SetSize(dimU);
-  mfem::Vector F(Vh->GetTrueVSize());
-  F = 0.0;
-  fform->ParallelAssemble(F);
-  f.Set(1.0, F);
-  for (int i = 0; i < tdof_list.Size(); i++) {
-    f(tdof_list[i]) = 0.0;
-  }
+  fform->ParallelAssemble(f);
+  Kform->EliminateVDofsInRHS(ess_tdof_list, uDC, f);
 
   // provided obstacle will be default param value
   theta_default.SetSize(dimM);
@@ -306,5 +306,24 @@ mfem::Operator *ParamObstacleProblem::Ddthgl(const mfem::Vector &d,
                                              const mfem::Vector &theta) {
   return Hdthgl.get();
 }
+
+void ParamObstacleProblem::ProlongateToFullDofs(const mfem::Vector &x, mfem::Vector &Px, bool include_DCs)
+{
+   if (P.get())
+   {
+      MFEM_VERIFY(x.Size() == P->Width(), "Size issue");   
+      MFEM_VERIFY(Px.Size() == P->Height(), "Size issue");
+      P->Mult(x, Px);   
+   }
+   else
+   {
+      Px.Set(1.0, x);
+   }
+   if (include_DCs)
+   {
+      Px.Add(1.0, uDC);
+   }
+}
+
 
 ParamObstacleProblem::~ParamObstacleProblem() {}

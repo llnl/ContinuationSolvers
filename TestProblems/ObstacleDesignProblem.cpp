@@ -83,15 +83,29 @@ int main(int argc, char *argv[])
    mfem::Vector uDC(dimU); uDC = 0.0;
    ParamObstacleProblem problem(Vh, &fRhs, &flat_obstacle, ess_tdof_list, uDC);
    ObstacleDesignProblem designproblem(&problem);
+   ParamObstacleProblem problem2(Vh, &fRhs, &flat_obstacle);
+   ReducedParamOptProblem     rproblem(&problem2, ess_tdof_list);
+   ObstacleDesignProblem designproblem2(&rproblem);
+   
    int dimPrimal = designproblem.GetDimU();
+   int dimPrimalr = designproblem2.GetDimU();
    mfem::Vector X0(dimPrimal); X0 = 0.0;
    mfem::Vector Xf(dimPrimal); Xf = 0.0;
+   mfem::Vector X0r(dimPrimalr); X0r = 0.0;
+   mfem::Vector Xfr(dimPrimalr); Xfr = 0.0;
+
+   
    mfem::Vector uf( Xf,  0, dimU);
    mfem::Vector pf( Xf, dimU, dimM);
    mfem::Vector thf(Xf, dimU + dimM, dimM);
    mfem::Vector sf( Xf, dimU + 2 * dimM, dimM);
    mfem::Vector zf( Xf, dimU + 3 * dimM, dimM);
+   mfem::Vector ufr( Xfr,  0, dimM);
    mfem::ParGridFunction u_gf(Vh);
+   mfem::ParGridFunction p_gf(Vh);
+   mfem::ParGridFunction th_gf(Vh);
+   mfem::ParGridFunction s_gf(Vh);
+   mfem::ParGridFunction z_gf(Vh);
    mfem::ParaViewDataCollection paraview_dc("ObstacleDesign", &pmesh);
    paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(order);
@@ -117,89 +131,35 @@ int main(int argc, char *argv[])
       }
    }
    u_gf.SetFromTrueDofs(uf);
-   //for (int i = 0; i < dimM; i++)
-   //{
-   //   std::cout << thf(i) << std::endl;
-   //}
-   //   p_gf.SetFromTrueDofs(pf);
-   //   th_gf.SetFromTrueDofs(thf);
-   //   s_gf.SetFromTrueDofs(sf);
-   //   z_gf.SetFromTrueDofs(zf);
    paraview_dc.SetCycle(0);
    paraview_dc.SetTime(0.0);
    paraview_dc.Save();
+   {
+      X0r = 0.0;
+      MPECSolver designoptimizer(&designproblem2);
+      designoptimizer.SetTol(outerTol);
+      designoptimizer.SetBarrierParameter(1.e-3);
+      designoptimizer.SetMaxIter(maxOuterIter);
+      designoptimizer.CheckLinearSystemResiduals();
+      designoptimizer.RegularizePrimalHessian(delta);
+      designoptimizer.Mult(X0r, Xfr);
+      auto mu_history = designoptimizer.GetMuHistory();
+      if (!myid)
+      {
+         for (int i = 0; i < mu_history.Size(); i++)
+         {
+            std::cout << "mu_" << i << " = " << mu_history[i] << std::endl;
+         }
+      }
+   }
+   mfem::Vector uf2(dimU); uf2 = 0.0;
+   
+   rproblem.ProlongateToFullDofs(ufr, uf2);
+   u_gf.SetFromTrueDofs(uf2);
+   paraview_dc.SetCycle(1);
+   paraview_dc.SetTime(1.0);
+   paraview_dc.Save();
 
-
-
-   //// define obstacle and reduced obstacle design problems
-   //ReducedParamOptProblem     rproblem(&problem, ess_tdof_list);
-   //ObstacleDesignProblem designproblem(&rproblem);
-   //
-   //int dimPrimal = designproblem.GetDimU();
-   //mfem::Vector U0(dimPrimal);
-   //mfem::Vector Uf(dimPrimal);
-   //
-   //int dimUr = rproblem.GetDimU();
-   //int dimU  =  problem.GetDimU();
-   //mfem::Vector ufr( Uf,      0, dimUr);
-   //mfem::Vector pfr( Uf,   dimUr, dimUr);
-   //mfem::Vector thfr(Uf, 2*dimUr, dimUr);
-   //mfem::Vector sfr( Uf, 3*dimUr, dimUr);
-   //mfem::Vector zfr( Uf, 4*dimUr, dimUr);
-   //
-   //mfem::Vector uf (dimU); uf = 0.0;
-   //mfem::Vector pf (dimU); pf = 0.0;
-   //mfem::Vector thf(dimU); thf = 0.0;
-   //mfem::Vector sf (dimU); sf = 0.0;
-   //mfem::Vector zf (dimU); zf = 0.0;
-   //
-   //mfem::ParGridFunction u_gf(Vh);
-   //mfem::ParGridFunction p_gf(Vh);
-   //mfem::ParGridFunction th_gf(Vh);
-   //mfem::ParGridFunction s_gf(Vh);
-   //mfem::ParGridFunction z_gf(Vh);
-
-   //mfem::ParaViewDataCollection paraview_dc("ObstacleDesign", &pmesh);
-   //paraview_dc.SetPrefixPath("ParaView");
-   //paraview_dc.SetLevelsOfDetail(order);
-   //paraview_dc.SetDataFormat(mfem::VTKFormat::BINARY);
-   //paraview_dc.SetHighOrderOutput(true);
-   //paraview_dc.RegisterField("displacement", &u_gf);
-   //paraview_dc.RegisterField("pressure", &p_gf);
-   //paraview_dc.RegisterField("design", &th_gf);
-   //paraview_dc.RegisterField("slack", &s_gf);
-   //paraview_dc.RegisterField("dual slack", &z_gf);
-   //{
-   //   U0 = 0.0;
-   //   MPECSolver designoptimizer(&designproblem);
-   //   designoptimizer.SetTol(outerTol);
-   //   designoptimizer.SetBarrierParameter(1.e-3);
-   //   designoptimizer.SetMaxIter(maxOuterIter);
-   //   designoptimizer.CheckLinearSystemResiduals();
-   //   designoptimizer.RegularizePrimalHessian(delta);
-   //   designoptimizer.Mult(U0, Uf);
-   //   auto mu_history = designoptimizer.GetMuHistory();
-   //   if (!myid)
-   //   {
-   //      for (int i = 0; i < mu_history.Size(); i++)
-   //      {
-   //         std::cout << "mu_" << i << " = " << mu_history[i] << std::endl;
-   //      }
-   //   }
-   //   rproblem.ProlongateToFullDofs(ufr, uf);
-   //   rproblem.ProlongateToFullDofs(pfr, pf);
-   //   rproblem.ProlongateToFullDofs(thfr, thf);
-   //   rproblem.ProlongateToFullDofs(sfr, sf);
-   //   rproblem.ProlongateToFullDofs(zfr, zf);
-   //   u_gf.SetFromTrueDofs(uf);
-   //   p_gf.SetFromTrueDofs(pf);
-   //   th_gf.SetFromTrueDofs(thf);
-   //   s_gf.SetFromTrueDofs(sf);
-   //   z_gf.SetFromTrueDofs(zf);
-   //   paraview_dc.SetCycle(0);
-   //   paraview_dc.SetTime(0.0);
-   //   paraview_dc.Save();
-   //}
    return 0;
 }
 

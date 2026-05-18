@@ -52,6 +52,7 @@ protected:
   std::unique_ptr<mfem::HypreParMatrix> R;   // restriction
   mfem::ParFiniteElementSpace *Vh = nullptr; // non-owning
   mfem::Vector f;
+  mfem::Vector uDC;
 
 public:
   ParamObstacleProblem(mfem::ParFiniteElementSpace *, mfem_fun_ptr_type fSource,
@@ -59,6 +60,9 @@ public:
   ParamObstacleProblem(mfem::ParFiniteElementSpace *, mfem_fun_ptr_type fSource,
                        mfem_fun_ptr_type obstacleSource,
                        mfem::Array<int> tdof_list, mfem::Vector &);
+  ParamObstacleProblem(mfem::ParFiniteElementSpace *, mfem_fun_ptr_type fSource,
+                       mfem_fun_ptr_type obstacleSource,
+                       mfem::Array<int> tdof_list);
   double E(const mfem::Vector &d, const mfem::Vector &theta,
            int &eval_err) override;
   void DdE(const mfem::Vector &d, const mfem::Vector &theta,
@@ -77,6 +81,7 @@ public:
                         const mfem::Vector &theta) override;
   mfem::Operator *Ddthgl(const mfem::Vector &d, const mfem::Vector &l,
                          const mfem::Vector &theta) override;
+  void ProlongateToFullDofs(const mfem::Vector &x, mfem::Vector &Px, bool include_DCs);
   virtual ~ParamObstacleProblem();
 };
 
