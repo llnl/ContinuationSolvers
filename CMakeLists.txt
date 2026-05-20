@@ -46,6 +46,7 @@ set(continuation_sources
   continuationsolvers/solvers/HomotopySolver.cpp
   continuationsolvers/solvers/CondensedHomotopySolver.cpp
   continuationsolvers/solvers/IPSolver.cpp
+  continuationsolvers/solvers/MPECSolver.cpp
   continuationsolvers/solvers/AMGF.cpp
   continuationsolvers/utilities.cpp)
 
@@ -59,6 +60,7 @@ set(continuation_headers
   continuationsolvers/solvers/HomotopySolver.hpp
   continuationsolvers/solvers/CondensedHomotopySolver.hpp
   continuationsolvers/solvers/IPSolver.hpp
+  continuationsolvers/solvers/MPECSolver.hpp
   continuationsolvers/solvers/AMGF.hpp
   continuationsolvers/utilities.hpp)
 
