@@ -64,7 +64,7 @@ protected:
 
 public:
   OptProblem();
-  void Init(HYPRE_BigInt *, HYPRE_BigInt *);
+  void Init(HYPRE_BigInt *, HYPRE_BigInt *) override;
 
   // GeneralOptProblem methods are defined in terms of
   // OptProblem specific methods: E, DdE, DddE, g, Ddg
@@ -138,7 +138,7 @@ protected:
 
 public:
   OptEqProblem();
-  void Init(HYPRE_BigInt *, HYPRE_BigInt *);
+  void Init(HYPRE_BigInt *, HYPRE_BigInt *) override;
 
   // GeneralOptProblem methods are defined in terms of
   // OptProblem specific methods: E, DdE, DddE, g, Ddg

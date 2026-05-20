@@ -175,13 +175,13 @@ ReducedOptProblem::ReducedOptProblem(OptProblem *problem_,
   
   // now set dof restriction
   // identity mapping
-  int nDofs = problem->GetDimU();
-  HYPRE_Int dofMask[nDofs];
+  const int nDofs = problem->GetDimU();
+  std::vector<HYPRE_Int> dofMask(nDofs);
   for (int i = 0; i < nDofs; i++)
   {
      dofMask[i] = 1;
   }
-  auto Rdof_mat = GenerateProjector(dofOffsets, dofOffsets, dofMask);
+  auto Rdof_mat = GenerateProjector(dofOffsets, dofOffsets, dofMask.data());
   Rdof.reset(Rdof_mat);
   Pdof.reset(Rdof->Transpose());
   
@@ -200,7 +200,6 @@ ReducedOptProblem::ReducedOptProblem(OptProblem *problem_,
 		                     HYPRE_Int *dofMask,
                                      HYPRE_Int *constraintMask) {
   problem = problem_;
-  //HYPRE_BigInt *dofOffsets = problem->GetDofOffsetsU();
 
   // given a constraint mask, lets update the constraintOffsets
   // from the original problem
@@ -257,7 +256,7 @@ ReducedOptProblem::ReducedOptProblem(OptProblem *problem_,
                                      mfem::HypreParVector &constraintMask) {
   
   
-  HYPRE_Int intConstraintMask[problem->GetDimM()];
+  std::vector<HYPRE_Int> intConstraintMask(problem->GetDimM());
   int nProblemConstraints = problem->GetDimM();
   for (int i = 0; i < nProblemConstraints; i++) {
     intConstraintMask[i] = 0;
@@ -266,7 +265,7 @@ ReducedOptProblem::ReducedOptProblem(OptProblem *problem_,
       intConstraintMask[i] = 1;
     }
   }
-  ReducedOptProblem(problem_, intConstraintMask);  
+  ReducedOptProblem(problem_, intConstraintMask.data());  
 }
 
 // energy objective E(d)
