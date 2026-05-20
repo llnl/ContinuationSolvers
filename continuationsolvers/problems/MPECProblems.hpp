@@ -75,7 +75,7 @@ public:
                    const mfem::Vector &theta, mfem::Vector &gradE);
   virtual void DthE(const mfem::Vector &u, const mfem::Vector &p,
                     const mfem::Vector &theta, mfem::Vector &gradE);
-  void DdE(const mfem::Vector &U, mfem::Vector &gradE);
+  void DdE(const mfem::Vector &U, mfem::Vector &gradE) override;
 
   /* DuuE, DupE, DuthE, DppE, DpthE, DththE assumed zero, user should implement
    * nonzero ones */
