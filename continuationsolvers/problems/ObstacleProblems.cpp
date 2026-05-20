@@ -184,7 +184,7 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
   Init(tempUOffsets, tempMOffsets);
   delete[] tempUOffsets;
   delete[] tempMOffsets;
-  HYPRE_Int dofMask[dimU];
+  std::vector<HYPRE_Int> dofMask(dimU);
   for (int i = 0; i < dimU; i++) {
     dofMask[i] = 1;
   }
@@ -192,9 +192,9 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
     dofMask[tdof_list[i]] = 0;
     uDC(tdof_list[i]) = ud(tdof_list[i]);
   }
-  R.reset(GenerateProjector(dofOffsetsM, dofOffsetsU, dofMask));
+  R.reset(GenerateProjector(dofOffsetsM, dofOffsetsU, dofMask.data()));
   P.reset(R->Transpose());
-  Jd.reset(GenerateProjector(dofOffsetsM, dofOffsetsU, dofMask));
+  Jd.reset(GenerateProjector(dofOffsetsM, dofOffsetsU, dofMask.data()));
 
   Kform.reset(new mfem::ParBilinearForm(Vh));
   Kform->AddDomainIntegrator(new mfem::MassIntegrator);
@@ -225,9 +225,7 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
   theta_default_copy.Set(1.0, theta_default);
   InitTheta(theta_default_copy);
 
-  mfem::Vector iDiag(dimU);
-  iDiag = 1.0;
-  iDiag = -1.0;
+  mfem::Vector iDiag(dimU); iDiag = -1.0;
   Jth.reset(GenerateHypreParMatrixFromDiagonal(dofOffsetsM, iDiag));
 
   Hddgl.reset(GenerateNullHypreParMatrix(dofOffsetsU, dofOffsetsU));

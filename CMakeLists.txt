@@ -41,6 +41,8 @@ include(${BLT_SOURCE_DIR}/SetupBLT.cmake)
 set(continuation_sources
   continuationsolvers/problems/NLMCProblems.cpp
   continuationsolvers/problems/OptProblems.cpp
+  continuationsolvers/problems/MPECProblems.cpp
+  continuationsolvers/problems/ObstacleProblems.cpp
   continuationsolvers/solvers/HomotopySolver.cpp
   continuationsolvers/solvers/CondensedHomotopySolver.cpp
   continuationsolvers/solvers/IPSolver.cpp
@@ -50,6 +52,8 @@ set(continuation_sources
 set(continuation_headers
   continuationsolvers/problems/NLMCProblems.hpp
   continuationsolvers/problems/OptProblems.hpp
+  continuationsolvers/problems/MPECProblems.hpp
+  continuationsolvers/problems/ObstacleProblems.hpp
   continuationsolvers/problems/Problems.hpp
   continuationsolvers/solvers/Solvers.hpp
   continuationsolvers/solvers/HomotopySolver.hpp
