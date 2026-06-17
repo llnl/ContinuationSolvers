@@ -194,10 +194,12 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
   }
   R.reset(GenerateProjector(dofOffsetsM, dofOffsetsU, dofMask.data()));
   P.reset(R->Transpose());
-  Jd.reset(GenerateProjector(dofOffsetsM, dofOffsetsU, dofMask.data()));
 
   Kform.reset(new mfem::ParBilinearForm(Vh));
-  Kform->AddDomainIntegrator(new mfem::MassIntegrator);
+  if (tdof_list.Size() == 0)
+  {
+    Kform->AddDomainIntegrator(new mfem::MassIntegrator);
+  }
   Kform->AddDomainIntegrator(new mfem::DiffusionIntegrator);
   Kform->Assemble();
   Kform->Finalize();
@@ -208,7 +210,25 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
   fform->Assemble();
   f.SetSize(dimU);
   fform->ParallelAssemble(f);
-  Kform->EliminateVDofsInRHS(ess_tdof_list, uDC, f);
+  Kform->EliminateVDofsInRHS(tdof_list, uDC, f);
+  
+  mfem::Array<int> empty_tdof_list;
+  Mform.reset(new mfem::ParBilinearForm(Vh));
+  Mform->AddDomainIntegrator(new mfem::MassIntegrator);
+  Mform->Assemble();
+  Mform->Finalize();
+  Mform->FormSystemMatrix(empty_tdof_list, M);
+  mfem::Vector one(M.Width());
+  
+  mfem::Vector Mlumped_full(M.Height());
+  M.Mult(one, Mlumped_full);
+  Mlumped.SetSize(R->Height()); Mlumped = 0.0;
+  R->Mult(Mlumped_full, Mlumped);
+  std::unique_ptr<mfem::HypreParMatrix> Mlumped_mat;
+  Mlumped_mat.reset(GenerateHypreParMatrixFromDiagonal(dofOffsetsM, Mlumped));
+  // M = R * Mlumped_mat
+  Jd.reset(ParMult(Mlumped_mat.get(), R.get(), true));
+
 
   // provided obstacle will be default param value
   theta_default.SetSize(dimM);
@@ -225,8 +245,9 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
   theta_default_copy.Set(1.0, theta_default);
   InitTheta(theta_default_copy);
 
-  mfem::Vector iDiag(dimU); iDiag = -1.0;
-  Jth.reset(GenerateHypreParMatrixFromDiagonal(dofOffsetsM, iDiag));
+  Mlumped *= -1.0;
+  Jth.reset(GenerateHypreParMatrixFromDiagonal(dofOffsetsM, Mlumped));
+  Mlumped *= -1.0;
 
   Hddgl.reset(GenerateNullHypreParMatrix(dofOffsetsU, dofOffsetsU));
   Hdthgl.reset(GenerateNullHypreParMatrix(dofOffsetsU, dofOffsetsM));
@@ -269,7 +290,7 @@ mfem::Operator *ParamObstacleProblem::DdthE(const mfem::Vector &d,
   return HdthE.get();
 }
 
-// g(d, \theta) = d - \theta >= 0
+// g(d, \theta) = Mlumped * (R * d - \theta) >= 0
 void ParamObstacleProblem::g(const mfem::Vector &d, const mfem::Vector &theta,
                              mfem::Vector &gd, int &eval_err) {
   eval_err = 0;
@@ -280,7 +301,7 @@ void ParamObstacleProblem::g(const mfem::Vector &d, const mfem::Vector &theta,
   MFEM_VERIFY(theta.Size() == Jd->Height(),
               "ParamObstacleProblem::g - Inconsistent dimensions");
   Jd->Mult(d, gd);
-  gd.Add(-1.0, theta);
+  Jth->AddMult(theta, gd);
 }
 
 mfem::Operator *ParamObstacleProblem::Ddg(const mfem::Vector &d,

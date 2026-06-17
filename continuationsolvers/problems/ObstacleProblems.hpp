@@ -37,9 +37,11 @@ protected:
   // data to define energy objective function e(d, \theta) = 0.5 d^T K d - f^T
   // d, g(d, \theta) = d - \theta >= 0 stiffness matrix used to define objective
   std::unique_ptr<mfem::ParBilinearForm> Kform;
+  std::unique_ptr<mfem::ParBilinearForm> Mform;
   std::unique_ptr<mfem::ParLinearForm> fform;
   mfem::Array<int> ess_tdof_list; // needed for calls to FormSystemMatrix
-  mfem::HypreParMatrix K;
+  mfem::HypreParMatrix K; // stiffness
+  mfem::HypreParMatrix M; // mass
   std::unique_ptr<mfem::HypreParMatrix> Jd;
   std::unique_ptr<mfem::HypreParMatrix> Jth;
   std::unique_ptr<mfem::HypreParMatrix>
@@ -51,6 +53,7 @@ protected:
   std::unique_ptr<mfem::HypreParMatrix> P;   // prolongation
   std::unique_ptr<mfem::HypreParMatrix> R;   // restriction
   mfem::ParFiniteElementSpace *Vh = nullptr; // non-owning
+  mfem::Vector Mlumped;
   mfem::Vector f;
   mfem::Vector uDC;
 

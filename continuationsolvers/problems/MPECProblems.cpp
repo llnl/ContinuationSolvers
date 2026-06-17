@@ -531,13 +531,20 @@ double ObstacleDesignProblem::E(const mfem::Vector &U, int &eval_err) {
 double ObstacleDesignProblem::E(const mfem::Vector &u, const mfem::Vector &p,
                                 const mfem::Vector &theta, int &eval_err) {
   eval_err = 0;
-  return 0.5 * InnerProduct(MPI_COMM_WORLD, theta, theta);
+  mfem::Vector shift(theta.Size()); shift = 0.0;
+  mfem::Vector temp(theta.Size()); temp = 0.0;
+  temp.Set(1.0, theta);
+  temp.Add(-1.0, shift);
+  
+  return 0.5 * InnerProduct(MPI_COMM_WORLD, temp, temp);
 }
 
 void ObstacleDesignProblem::DthE(const mfem::Vector &u, const mfem::Vector &p,
                                  const mfem::Vector &theta,
                                  mfem::Vector &gradE) {
+  mfem::Vector shift(theta.Size()); shift = 0.0;
   gradE.Set(1.0, theta);
+  gradE.Add(-1.0, shift);
 }
 
 mfem::Operator *ObstacleDesignProblem::DththE(const mfem::Vector &u,
