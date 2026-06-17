@@ -198,7 +198,7 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
    */
   double theta0 = theta(xk);
   thetaMin = 1.e-4 * std::max(1.0, theta0);
-  thetaMax = 1.e8 * thetaMin; // 1.e4 * max(1.0, theta0)
+  thetaMax = 1.e4  * std::max(1.0, theta0);
 
   double Eeval, maxBarrierSolves, Eevalmu0;
   bool printOptimalityError; // control optimality error print to console for
@@ -207,17 +207,16 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
   maxBarrierSolves = 10;
 
   for (jOpt = 0; jOpt < max_iter; jOpt++) {
-    if (iAmRoot) {
-      *ipout << "interior-point solve step " << jOpt << std::endl;
+    if (iAmRoot && printLevel > 1) {
+      *ipout << "IP solver iteration#" << jOpt << std::endl;
     }
     // A-2. Check convergence of overall optimization problem
     printOptimalityError = false;
     Eevalmu0 = E(xk, lk, zlk, printOptimalityError);
     if (Eevalmu0 < OptTol) {
       converged = true;
-      if (iAmRoot) {
-        *ipout << "solved optimization problem :)\n";
-        *ipout << "to abs tol " << OptTol << std::endl;
+      if (iAmRoot && printLevel > 0) {
+        *ipout << "solved optimization problem to absolute tolerance " << OptTol << "\n";
       }
       break;
     }
@@ -227,17 +226,16 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
     }
 
     for (int i = 0; i < maxBarrierSolves; i++) {
-      // A-3. Check convergence of the barrier subproblem
+      // Check convergence of the barrier subproblem
       printOptimalityError = true;
       Eeval = E(xk, lk, zlk, mu_k, printOptimalityError);
-      if (iAmRoot) {
-        *ipout << "E = " << Eeval << std::endl;
+      if (iAmRoot && printLevel > 1)
+      {
+        *ipout << "Optimality error = " << Eevalmu0 << std::endl;
+        *ipout << "Subproblem error = " << Eeval << ", mu = " << mu_k << std::endl;
       }
       if (Eeval < kEps * mu_k) {
-        if (iAmRoot) {
-          *ipout << "solved barrier subproblem, for mu = " << mu_k << std::endl;
-        }
-        // A-3.1. Recompute the barrier parameter
+        // Update the barrier parameter
         double mu_k_new = UpdateBarrierParameter(mu_k);
         if (mu_k_new < muLogBarrierSol && !(savedLogBarrierSol)) {
           uLogBarrierSol.Set(1.0, xk.GetBlock(0));
@@ -247,8 +245,13 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
           savedLogBarrierSol = true;
           muLogBarrierSol = mu_k;
         }
+	if (iAmRoot && printLevel > 2)
+	{
+          *ipout << "solved barrier subproblem, for mu = " << mu_k << std::endl;
+	  *ipout << "updating barrier parameter to " << mu_k_new << std::endl;
+	}
         mu_k = mu_k_new;
-        // A-3.2. Re-initialize the filter
+        // Re-initialize the filter for the new subproblem
         F1.DeleteAll();
         F2.DeleteAll();
       } else {
@@ -256,9 +259,9 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
       }
     }
 
-    // A-4. Compute the search direction
+    // Compute the IP-Newton search direction
     // solve for (uhat, mhat, lhat)
-    if (iAmRoot) {
+    if (iAmRoot && printLevel > 3) {
       *ipout << "\n** IP-Newton solve **\n";
     }
     zlhat = 0.0;
@@ -266,7 +269,7 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
     bool passedCurvatureTest = false;
     IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k, passedCurvatureTest);
     if (!passedCurvatureTest) {
-      if (iAmRoot) {
+      if (iAmRoot && printLevel > 3) {
         *ipout << "curvature test failed\n";
       }
       int maxCurvatureTests = 30;
@@ -284,7 +287,7 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
                     deltaReg);
       for (int numCurvatureTests = 0; numCurvatureTests < maxCurvatureTests;
            numCurvatureTests++) {
-        if (iAmRoot) {
+        if (iAmRoot && printLevel > 3) {
           *ipout << "deltaReg = " << deltaReg << "\n";
         }
         if (passedCurvatureTest) {
@@ -292,9 +295,6 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
           break;
         } else {
           if (deltaRegLast < deltaRegMin) {
-            if (iAmRoot) {
-              *ipout << "delta *= " << kRegBarPlus << "\n";
-            }
             deltaReg *= kRegBarPlus;
           } else {
             deltaReg *= kRegPlus;
@@ -324,15 +324,15 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
     }
     Xhat.GetBlock(3).Set(1.0, zlhat);
 
-    // A-5. Backtracking line search.
-    if (iAmRoot) {
+    // Backtracking filter line search.
+    if (iAmRoot && printLevel > 3) {
       *ipout << "\n** Linesearch **\n";
       *ipout << "mu = " << mu_k << std::endl;
     }
     lineSearch(Xk, Xhat, mu_k);
 
     if (lineSearchSuccess) {
-      if (iAmRoot) {
+      if (iAmRoot && printLevel > 3) {
         *ipout << "Linesearch successful\n";
       }
       if (!switchCondition || !sufficientDecrease) {
@@ -346,7 +346,7 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
       zlk.Add(alphaz, Xhat.GetBlock(3));
       projectZ(xk, zlk, mu_k);
     } else {
-      if (iAmRoot) {
+      if (iAmRoot && printLevel > 3) {
         *ipout << "Linesearch not successful\n";
         *ipout << "attempting feasibility restoration with theta = " << thx0
                << std::endl;
@@ -354,7 +354,7 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
       }
       break;
     }
-    if (jOpt + 1 == max_iter && iAmRoot) {
+    if (iAmRoot && jOpt + 1 == max_iter && printLevel > 3) {
       *ipout << "maximum optimization iterations reached, exiting without "
                 "converging\n";
     }
@@ -554,7 +554,7 @@ void InteriorPointSolver::IPNewtonSolve(mfem::BlockVector &x, mfem::Vector &l,
     double res_norm = mfem::GlobalLpNorm(2, residual.Norml2(), MPI_COMM_WORLD);
     double relative_res_norm =
         res_norm / mfem::GlobalLpNorm(2, b.Norml2(), MPI_COMM_WORLD);
-    if (checkLinearSysResiduals && iAmRoot) {
+    if (iAmRoot && checkLinearSysResiduals) {
       *ipout << "|| A x - b ||_2 = " << res_norm << "\n";
       *ipout << "|| A x - b ||_2 / || b ||_2 = " << relative_res_norm << "\n";
     }
@@ -563,11 +563,10 @@ void InteriorPointSolver::IPNewtonSolve(mfem::BlockVector &x, mfem::Vector &l,
     } else {
       linSolveConvergence = true;
     }
-    // TODO: if linear solve fails then report a failure of the curvature test
   }
 
   passedCurvatureTest = CurvatureTest(A, Xhat, l, b, delta);
-  if (iAmRoot) {
+  if (iAmRoot && printLevel > 3) {
     *ipout << "curvature check passed? " << passedCurvatureTest << " \n";
     *ipout << "linear solver converged? " << linSolveConvergence << " \n";
   }
@@ -639,7 +638,7 @@ void InteriorPointSolver::lineSearch(mfem::BlockVector &X0,
   double xhat_norm = sqrt(InnerProduct(MPI_COMM_WORLD, xhat, xhat));
   double Dxphi0_norm = sqrt(InnerProduct(MPI_COMM_WORLD, Dxphi0, Dxphi0));
   descentDirection = Dxphi0_xhat < 0. ? true : false;
-  if (iAmRoot) {
+  if (iAmRoot && printLevel > 3) {
     *ipout << "grad(phi)^T xhat / (||grad(phi)|| * ||xhat||) = "
            << Dxphi0_xhat / (xhat_norm * Dxphi0_norm) << std::endl;
     *ipout << "|grad(phi)^T xhat| = " << abs(Dxphi0_xhat) << std::endl;
@@ -654,17 +653,17 @@ void InteriorPointSolver::lineSearch(mfem::BlockVector &X0,
 
   lineSearchSuccess = false;
   for (int i = 0; i < maxBacktrack; i++) {
-    if (iAmRoot) {
-      *ipout << "\n--------- alpha = " << alpha << " ---------\n";
+    if (iAmRoot && printLevel > 3) {
+      *ipout << "\n linesearch step length = " << alpha << " ---------\n";
     }
-    // ----- A-5.2. Compute trial point: xtrial = x0 + alpha_i xhat
+    // ----- Compute trial point: xtrial = x0 + alpha_i xhat
     xtrial.Set(1.0, x0);
     xtrial.Add(alpha, xhat);
 
-    // ------ A-5.3. if not in filter region go to A.5.4 otherwise go to A-5.5.
+    // ------ If not in filter region go to A.5.4 otherwise go to A-5.5.
     thxtrial = theta(xtrial, th_eval_err);
     phxtrial = phi(xtrial, mu, ph_eval_err);
-    if (iAmRoot) {
+    if (iAmRoot && printLevel > 3) {
       *ipout
           << "| grad(phi)^xhat - (phi(x0 + alpha xhat) - phi(x0)) / alpha | = "
           << abs(Dxphi0_xhat - (phxtrial - phx0) / alpha)
@@ -672,7 +671,7 @@ void InteriorPointSolver::lineSearch(mfem::BlockVector &X0,
     }
 
     if (!(th_eval_err == 0 && ph_eval_err == 0)) {
-      if (iAmRoot) {
+      if (iAmRoot && printLevel > 3) {
         *ipout << "BAD STEP: reducing step length\n";
       }
       alpha *= 0.5;
@@ -680,10 +679,10 @@ void InteriorPointSolver::lineSearch(mfem::BlockVector &X0,
     }
     filterCheck(thxtrial, phxtrial);
     if (!inFilterRegion) {
-      if (iAmRoot) {
+      if (iAmRoot && printLevel > 3) {
         *ipout << "not in filter region :)\n";
       }
-      // ------ A.5.4: Check sufficient decrease
+      // ------ Check sufficient decrease
       if (!descentDirection) {
         switchCondition = false;
       } else {
@@ -692,7 +691,7 @@ void InteriorPointSolver::lineSearch(mfem::BlockVector &X0,
                 ? true
                 : false;
       }
-      if (iAmRoot) {
+      if (iAmRoot && printLevel > 3) {
         *ipout << "theta(x0) = " << thx0 << ", thetaMin = " << thetaMin
                << std::endl;
         *ipout << "theta(xtrial) = " << thxtrial
@@ -707,7 +706,7 @@ void InteriorPointSolver::lineSearch(mfem::BlockVector &X0,
         sufficientDecrease =
             (phxtrial <= phx0 + eta * alpha * Dxphi0_xhat) ? true : false;
         if (sufficientDecrease) {
-          if (iAmRoot) {
+          if (iAmRoot && printLevel > 3) {
             *ipout << "Line search successful: sufficient decrease in "
                       "log-barrier objective.\n";
           }
@@ -715,7 +714,7 @@ void InteriorPointSolver::lineSearch(mfem::BlockVector &X0,
           lineSearchSuccess = true;
           break;
         } else {
-          if (iAmRoot) {
+          if (iAmRoot && printLevel > 3) {
             *ipout << "sufficient decrease not achieved in log-barrier "
                       "objective.\n";
           }
@@ -723,7 +722,7 @@ void InteriorPointSolver::lineSearch(mfem::BlockVector &X0,
       } else {
         if (thxtrial <= (1. - gTheta) * thx0 ||
             phxtrial <= phx0 - gPhi * thx0) {
-          if (iAmRoot) {
+          if (iAmRoot && printLevel > 3) {
             *ipout << "Line search successful: infeasibility or log-barrier "
                       "objective decreased.\n";
           }
@@ -733,8 +732,8 @@ void InteriorPointSolver::lineSearch(mfem::BlockVector &X0,
         }
       }
     } else {
-      if (iAmRoot) {
-        *ipout << "in filter region :(\n";
+      if (iAmRoot && printLevel > 3) {
+        *ipout << "in filter region, reducing step length\n";
       }
     }
     alpha *= 0.5;
@@ -794,7 +793,7 @@ double InteriorPointSolver::E(const mfem::BlockVector &x, const mfem::Vector &l,
   ll1 = mfem::GlobalLpNorm(1, l.Norml1(), MPI_COMM_WORLD);
   sc = std::max(sMax, zl1 / (double(dimMGlb))) / sMax;
   sd = std::max(sMax, (ll1 + zl1) / (double(dimCGlb + dimMGlb))) / sMax;
-  if (iAmRoot && printEeval) {
+  if (iAmRoot && printEeval && printLevel > 2) {
     *ipout << "evaluating optimality error for mu = " << mu << std::endl;
     *ipout << "stationarity measure = " << E1 / sd << std::endl;
     *ipout << "feasibility measure  = " << E2 << std::endl;

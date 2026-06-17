@@ -21,7 +21,7 @@
 #include "../continuationsolvers/problems/MPECProblems.hpp"
 
 
-double dmanufacturedFun(const mfem::Vector &x);
+double manufacturedFun(const mfem::Vector &x);
 double fRhs(const mfem::Vector &x);
 double flat_obstacle(const mfem::Vector &x);
 
@@ -51,6 +51,7 @@ int main(int argc, char *argv[])
 		  "Primal Hessian regularization");
    args.ParseCheck();
 
+   int printLevel = 2;
    // meshing
    const char *meshFile = "meshes/inline-quad.mesh";
    mfem::Mesh mesh(meshFile, 1, 1);
@@ -69,10 +70,12 @@ int main(int argc, char *argv[])
    auto fec  = std::make_unique<mfem::H1_FECollection>(order, dim);
    auto fes  = std::make_unique<mfem::ParFiniteElementSpace>(&pmesh, fec.get());
    mfem::Array<int> ess_tdof_list;
+   ess_tdof_list.SetSize(0);
    mfem::Array<int> ess_bdr;
    if (pmesh.bdr_attributes.Size())
    {
       ess_bdr.SetSize(pmesh.bdr_attributes.Max());
+      ess_bdr = 0;
       ess_bdr[0] = 1;
       fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
@@ -106,20 +109,25 @@ int main(int argc, char *argv[])
    mfem::ParGridFunction th_gf(Vh);
    mfem::ParGridFunction s_gf(Vh);
    mfem::ParGridFunction z_gf(Vh);
+   mfem::FunctionCoefficient umanufactured_fc(manufacturedFun); // analytic solution
+   mfem::ParGridFunction umanufactured_gf(Vh);
+   umanufactured_gf.ProjectCoefficient(umanufactured_fc);
    mfem::ParaViewDataCollection paraview_dc("ObstacleDesign", &pmesh);
    paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(order);
    paraview_dc.SetDataFormat(mfem::VTKFormat::BINARY);
    paraview_dc.SetHighOrderOutput(true);
    paraview_dc.RegisterField("displacement", &u_gf);
+   paraview_dc.RegisterField("displacement (manufactured)", &umanufactured_gf);
    {
       X0 = 0.0;
       MPECSolver designoptimizer(&designproblem);
       designoptimizer.SetTol(outerTol);
       designoptimizer.SetBarrierParameter(1.e-3);
       designoptimizer.SetMaxIter(maxOuterIter);
-      designoptimizer.CheckLinearSystemResiduals();
+      //designoptimizer.CheckLinearSystemResiduals();
       designoptimizer.RegularizePrimalHessian(delta);
+      designoptimizer.SetPrintLevel(printLevel);
       designoptimizer.Mult(X0, Xf);
       auto mu_history = designoptimizer.GetMuHistory();
       if (!myid)
@@ -140,8 +148,9 @@ int main(int argc, char *argv[])
       designoptimizer.SetTol(outerTol);
       designoptimizer.SetBarrierParameter(1.e-3);
       designoptimizer.SetMaxIter(maxOuterIter);
-      designoptimizer.CheckLinearSystemResiduals();
+      //designoptimizer.CheckLinearSystemResiduals();
       designoptimizer.RegularizePrimalHessian(delta);
+      designoptimizer.SetPrintLevel(printLevel);
       designoptimizer.Mult(X0r, Xfr);
       auto mu_history = designoptimizer.GetMuHistory();
       if (!myid)
@@ -164,7 +173,7 @@ int main(int argc, char *argv[])
 }
 
 
-double dmanufacturedFun(const mfem::Vector &x)
+double manufacturedFun(const mfem::Vector &x)
 {
    return std::cos(2*M_PI*x(0)) + 0.2 - 2.0*(std::pow(x(0),3) - 1.5*std::pow(x(0),2));
 }

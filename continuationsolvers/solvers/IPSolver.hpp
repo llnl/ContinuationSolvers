@@ -69,6 +69,13 @@ protected:
   double kRegBarPlus = 1.e2;
   double kRegPlus = 8.;
 
+  // printLevel
+  // 0: no output
+  // 1: minimal just convergence
+  // 2: iteration progress
+  // 3: component-wise optimality error breakdown
+  // 4: more verbose (useful for developers)
+  int printLevel = 2;
 public:
   InteriorPointSolver(GeneralOptProblem *);
   double MaxStepSize(mfem::Vector &, mfem::Vector &, mfem::Vector &, double);
@@ -115,6 +122,7 @@ public:
   void GetLogBarrierZl(mfem::Vector &);
   void GetLogBarrierMu(double &);
   void SetLogBarrierMu(double);
+  void SetPrintLevel(int printLevel_) { printLevel = printLevel_;};
   /// control output from solver
   void SetOutputStream(std::ostream *ipout_) { ipout = ipout_; };
   /// set the linear solver method used for the IP-Newton linear system
