@@ -250,10 +250,13 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
           *ipout << "solved barrier subproblem, for mu = " << mu_k << std::endl;
 	  *ipout << "updating barrier parameter to " << mu_k_new << std::endl;
 	}
+	if (mu_k != mu_k_new)
+	{
+           // Re-initialize the filter for the new subproblem
+           F1.DeleteAll();
+           F2.DeleteAll();
+	}
         mu_k = mu_k_new;
-        // Re-initialize the filter for the new subproblem
-        F1.DeleteAll();
-        F2.DeleteAll();
       } else {
         break;
       }

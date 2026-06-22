@@ -218,9 +218,10 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
   Mform->Assemble();
   Mform->Finalize();
   Mform->FormSystemMatrix(empty_tdof_list, M);
-  mfem::Vector one(M.Width());
+  mfem::Vector one(M.Width()); one = 1.0;
   
   mfem::Vector Mlumped_full(M.Height());
+  Mlumped_full = 0.0;
   M.Mult(one, Mlumped_full);
   Mlumped.SetSize(R->Height()); Mlumped = 0.0;
   R->Mult(Mlumped_full, Mlumped);
@@ -228,7 +229,9 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
   Mlumped_mat.reset(GenerateHypreParMatrixFromDiagonal(dofOffsetsM, Mlumped));
   // M = R * Mlumped_mat
   Jd.reset(ParMult(Mlumped_mat.get(), R.get(), true));
-
+  // g(u, th) = Mlumped * (u - th)
+  //          = R Mlumped R^T (R u - th)
+  //          = diag(R Mlumped) * (R u - th)
 
   // provided obstacle will be default param value
   theta_default.SetSize(dimM);
@@ -261,11 +264,12 @@ double ParamObstacleProblem::E(const mfem::Vector &d, const mfem::Vector &theta,
   MFEM_VERIFY(f.Size() == K.Height(),
               "ParamObstacleProblem::E - Inconsistent dimensions");
   eval_err = 0;
-  mfem::Vector Kd(K.Height());
-  Kd = 0.0;
-  K.Mult(d, Kd);
-  return 0.5 * mfem::InnerProduct(MPI_COMM_WORLD, d, Kd) -
-         mfem::InnerProduct(MPI_COMM_WORLD, f, d);
+  mfem::Vector Kdmf(K.Height());
+  Kdmf = 0.0;
+  K.Mult(d, Kdmf);
+  Kdmf *= 0.5;
+  Kdmf.Add(-1.0, f);
+  return mfem::InnerProduct(MPI_COMM_WORLD, d, Kdmf);
 }
 
 void ParamObstacleProblem::DdE(const mfem::Vector &d, const mfem::Vector &theta,

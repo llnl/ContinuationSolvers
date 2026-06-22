@@ -14,6 +14,7 @@ protected:
   mfem::Array<int> constraint_blockoffsets; // offsets for constraints which
                                             // have sizes like (u, p, s, z)
 
+  mfem::Vector slackScale;
   double compl_reg_const = 1.e-2; // complementarity regularization
   std::unique_ptr<mfem::HypreParMatrix> DsPhi;
   std::unique_ptr<mfem::HypreParMatrix> DzPhi;
@@ -95,6 +96,7 @@ public:
   void g(const mfem::Vector &U, mfem::Vector &gU, int &eval_err) override;
   mfem::Operator *Ddg(const mfem::Vector &U) override;
   mfem::Operator *Dddgl(const mfem::Vector &U, const mfem::Vector &l) override;
+  void SetSlackScale(const mfem::Vector sScale) {slackScale.Set(1.0, sScale);};
   virtual ~MPECProblem();
 };
 

@@ -76,6 +76,17 @@ MPECProblem::MPECProblem(ParamOptProblem *paramopt_) : OptEqProblem() {
   diag = -1.0;
   dg2dz.reset(
       GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsM(), diag));
+  
+  slackScale.SetSize(paramopt->GetDimM()); slackScale = 1.0;
+  mfem::Vector tempMassLump(paramopt->GetDimM());
+  tempMassLump = 1.0;
+  ParamObstacleProblem * temp_ptr = dynamic_cast<ParamObstacleProblem*>(paramopt);
+  if (temp_ptr)
+  {
+     temp_ptr->GetConstraintMassLump(tempMassLump);
+  }
+  slackScale /= tempMassLump;
+
 }
 
 double MPECProblem::E(const mfem::Vector &U, int &eval_err) {
@@ -241,21 +252,30 @@ void MPECProblem::RegularizedComplementarity(const mfem::Vector &s,
   MFEM_VERIFY(s.Size() == z.Size(), "sizes incorrect");
   MFEM_VERIFY(s.Size() == phi.Size(), "sizes incorrect");
   MFEM_VERIFY(s.Size() == paramopt->GetDimM(), "sizes incorrect");
+  // ss = "scaled slack"
+  mfem::Vector ss(s.Size());
+  ss.Set(1.0, s);
+  ss *= slackScale;
   for (int i = 0; i < s.Size(); i++) {
     phi(i) =
-        s(i) + z(i) - std::pow(std::pow(s(i), 2) + std::pow(z(i), 2) + mu, 0.5);
+        ss(i) + z(i) - std::pow(std::pow(ss(i), 2) + std::pow(z(i), 2) + mu, 0.5);
   }
 }
 
 mfem::Operator *MPECProblem::DsRegularizedComplementarity(const mfem::Vector &s,
                                                           const mfem::Vector &z,
                                                           const double &mu) {
-  // Verify sizes
+  MFEM_VERIFY(s.Size() == z.Size(), "sizes incorrect");
+  MFEM_VERIFY(s.Size() == paramopt->GetDimM(), "sizes incorrect");
   mfem::Vector diag(s.Size());
   diag = 0.0;
+  // ss = "scaled slack"
+  mfem::Vector ss(s.Size());
+  ss.Set(1.0, s);
+  ss *= slackScale;
   for (int i = 0; i < s.Size(); i++) {
     diag(i) =
-        1.0 - s(i) / std::pow(std::pow(s(i), 2) + std::pow(z(i), 2) + mu, 0.5);
+        slackScale(i) * (1.0 - ss(i) / std::pow(std::pow(ss(i), 2) + std::pow(z(i), 2) + mu, 0.5));
   }
   DsPhi.reset(
       GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsM(), diag));
@@ -265,12 +285,17 @@ mfem::Operator *MPECProblem::DsRegularizedComplementarity(const mfem::Vector &s,
 mfem::Operator *MPECProblem::DzRegularizedComplementarity(const mfem::Vector &s,
                                                           const mfem::Vector &z,
                                                           const double &mu) {
-  // Verify sizes
+  MFEM_VERIFY(s.Size() == z.Size(), "sizes incorrect");
+  MFEM_VERIFY(s.Size() == paramopt->GetDimM(), "sizes incorrect");
+  // ss = "scaled slack"
+  mfem::Vector ss(s.Size());
+  ss.Set(1.0, s);
+  ss *= slackScale;
   mfem::Vector diag(s.Size());
   diag = 0.0;
   for (int i = 0; i < s.Size(); i++) {
     diag(i) =
-        1.0 - z(i) / std::pow(std::pow(s(i), 2) + std::pow(z(i), 2) + mu, 0.5);
+        1.0 - z(i) / std::pow(std::pow(ss(i), 2) + std::pow(z(i), 2) + mu, 0.5);
   }
   DzPhi.reset(
       GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsM(), diag));
@@ -283,12 +308,15 @@ mfem::Operator *MPECProblem::DsslRegularizedComplementarity(
   MFEM_VERIFY(s.Size() == z.Size(), "sizes incorrect");
   MFEM_VERIFY(s.Size() == l.Size(), "sizes incorrect");
   MFEM_VERIFY(s.Size() == paramopt->GetDimM(), "sizes incorrect");
-  // Verify sizes
   mfem::Vector diag(s.Size());
   diag = 0.0;
+  // ss = "scaled slack"
+  mfem::Vector ss(s.Size());
+  ss.Set(1.0, s);
+  ss *= slackScale;
   for (int i = 0; i < s.Size(); i++) {
-    diag(i) = (s(i) - std::pow(s(i), 2) - std::pow(z(i), 2) - mu) /
-              std::pow(std::pow(s(i), 2) + std::pow(z(i), 2) + mu, 1.5);
+    diag(i) = -1.0 * std::pow(slackScale(i), 2) * (std::pow(z(i), 2) + mu) /
+                std::pow(std::pow(ss(i), 2) + std::pow(z(i), 2) + mu, 1.5);
     diag(i) *= l(i);
   }
   DsslPhi.reset(
@@ -302,12 +330,15 @@ mfem::Operator *MPECProblem::DszlRegularizedComplementarity(
   MFEM_VERIFY(s.Size() == z.Size(), "sizes incorrect");
   MFEM_VERIFY(s.Size() == l.Size(), "sizes incorrect");
   MFEM_VERIFY(s.Size() == paramopt->GetDimM(), "sizes incorrect");
-  // Verify sizes
   mfem::Vector diag(s.Size());
   diag = 0.0;
+  // ss = "scaled slack"
+  mfem::Vector ss(s.Size());
+  ss.Set(1.0, s);
+  ss *= slackScale;
   for (int i = 0; i < s.Size(); i++) {
     diag(i) =
-        s(i) * z(i) / std::pow(std::pow(s(i), 2) + std::pow(z(i), 2) + mu, 1.5);
+        slackScale(i) * ss(i) * z(i) / std::pow(std::pow(ss(i), 2) + std::pow(z(i), 2) + mu, 1.5);
     diag(i) *= l(i);
   }
   DszlPhi.reset(
@@ -321,12 +352,15 @@ mfem::Operator *MPECProblem::DzzlRegularizedComplementarity(
   MFEM_VERIFY(s.Size() == z.Size(), "sizes incorrect");
   MFEM_VERIFY(s.Size() == l.Size(), "sizes incorrect");
   MFEM_VERIFY(s.Size() == paramopt->GetDimM(), "sizes incorrect");
-  // Verify sizes
   mfem::Vector diag(s.Size());
   diag = 0.0;
+  // ss = "scaled slack"
+  mfem::Vector ss(s.Size());
+  ss.Set(1.0, s);
+  ss *= slackScale;
   for (int i = 0; i < s.Size(); i++) {
-    diag(i) = (z(i) - std::pow(s(i), 2) - std::pow(z(i), 2) - mu) /
-              std::pow(std::pow(s(i), 2) + std::pow(z(i), 2) + mu, 1.5);
+    diag(i) = -1.0 * (std::pow(ss(i), 2) + mu) /
+              std::pow(std::pow(ss(i), 2) + std::pow(z(i), 2) + mu, 1.5);
     diag(i) *= l(i);
   }
   DzzlPhi.reset(

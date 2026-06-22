@@ -85,6 +85,10 @@ public:
   mfem::Operator *Ddthgl(const mfem::Vector &d, const mfem::Vector &l,
                          const mfem::Vector &theta) override;
   void ProlongateToFullDofs(const mfem::Vector &x, mfem::Vector &Px, bool include_DCs);
+  void GetConstraintMassLump(mfem::Vector & lump) {
+    lump.SetSize(Mlumped.Size());
+    lump.Set(1.0, Mlumped);
+  }
   virtual ~ParamObstacleProblem();
 };
 
