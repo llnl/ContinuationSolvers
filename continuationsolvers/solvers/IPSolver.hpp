@@ -76,6 +76,7 @@ protected:
   // 3: component-wise optimality error breakdown
   // 4: more verbose (useful for developers)
   int printLevel = 2;
+
 public:
   InteriorPointSolver(GeneralOptProblem *);
   double MaxStepSize(mfem::Vector &, mfem::Vector &, mfem::Vector &, double);
@@ -122,7 +123,7 @@ public:
   void GetLogBarrierZl(mfem::Vector &);
   void GetLogBarrierMu(double &);
   void SetLogBarrierMu(double);
-  void SetPrintLevel(int printLevel_) { printLevel = printLevel_;};
+  void SetPrintLevel(int printLevel_) { printLevel = printLevel_; };
   /// control output from solver
   void SetOutputStream(std::ostream *ipout_) { ipout = ipout_; };
   /// set the linear solver method used for the IP-Newton linear system

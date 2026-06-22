@@ -198,7 +198,7 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
    */
   double theta0 = theta(xk);
   thetaMin = 1.e-4 * std::max(1.0, theta0);
-  thetaMax = 1.e4  * std::max(1.0, theta0);
+  thetaMax = 1.e4 * std::max(1.0, theta0);
 
   double Eeval, maxBarrierSolves, Eevalmu0;
   bool printOptimalityError; // control optimality error print to console for
@@ -216,7 +216,8 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
     if (Eevalmu0 < OptTol) {
       converged = true;
       if (iAmRoot && printLevel > 0) {
-        *ipout << "solved optimization problem to absolute tolerance " << OptTol << "\n";
+        *ipout << "solved optimization problem to absolute tolerance " << OptTol
+               << "\n";
       }
       break;
     }
@@ -229,10 +230,10 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
       // Check convergence of the barrier subproblem
       printOptimalityError = true;
       Eeval = E(xk, lk, zlk, mu_k, printOptimalityError);
-      if (iAmRoot && printLevel > 1)
-      {
+      if (iAmRoot && printLevel > 1) {
         *ipout << "Optimality error = " << Eevalmu0 << std::endl;
-        *ipout << "Subproblem error = " << Eeval << ", mu = " << mu_k << std::endl;
+        *ipout << "Subproblem error = " << Eeval << ", mu = " << mu_k
+               << std::endl;
       }
       if (Eeval < kEps * mu_k) {
         // Update the barrier parameter
@@ -245,17 +246,15 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
           savedLogBarrierSol = true;
           muLogBarrierSol = mu_k;
         }
-	if (iAmRoot && printLevel > 2)
-	{
+        if (iAmRoot && printLevel > 2) {
           *ipout << "solved barrier subproblem, for mu = " << mu_k << std::endl;
-	  *ipout << "updating barrier parameter to " << mu_k_new << std::endl;
-	}
-	if (mu_k != mu_k_new)
-	{
-           // Re-initialize the filter for the new subproblem
-           F1.DeleteAll();
-           F2.DeleteAll();
-	}
+          *ipout << "updating barrier parameter to " << mu_k_new << std::endl;
+        }
+        if (mu_k != mu_k_new) {
+          // Re-initialize the filter for the new subproblem
+          F1.DeleteAll();
+          F2.DeleteAll();
+        }
         mu_k = mu_k_new;
       } else {
         break;
