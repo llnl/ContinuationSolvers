@@ -96,7 +96,9 @@ public:
   void g(const mfem::Vector &U, mfem::Vector &gU, int &eval_err) override;
   mfem::Operator *Ddg(const mfem::Vector &U) override;
   mfem::Operator *Dddgl(const mfem::Vector &U, const mfem::Vector &l) override;
-  void SetSlackScale(const mfem::Vector sScale) {slackScale.Set(1.0, sScale);};
+  void SetSlackScale(const mfem::Vector sScale) {
+    slackScale.Set(1.0, sScale);
+  };
   virtual ~MPECProblem();
 };
 

@@ -40,8 +40,8 @@ protected:
   std::unique_ptr<mfem::ParBilinearForm> Mform;
   std::unique_ptr<mfem::ParLinearForm> fform;
   mfem::Array<int> ess_tdof_list; // needed for calls to FormSystemMatrix
-  mfem::HypreParMatrix K; // stiffness
-  mfem::HypreParMatrix M; // mass
+  mfem::HypreParMatrix K;         // stiffness
+  mfem::HypreParMatrix M;         // mass
   std::unique_ptr<mfem::HypreParMatrix> Jd;
   std::unique_ptr<mfem::HypreParMatrix> Jth;
   std::unique_ptr<mfem::HypreParMatrix>
@@ -84,8 +84,9 @@ public:
                         const mfem::Vector &theta) override;
   mfem::Operator *Ddthgl(const mfem::Vector &d, const mfem::Vector &l,
                          const mfem::Vector &theta) override;
-  void ProlongateToFullDofs(const mfem::Vector &x, mfem::Vector &Px, bool include_DCs);
-  void GetConstraintMassLump(mfem::Vector & lump) {
+  void ProlongateToFullDofs(const mfem::Vector &x, mfem::Vector &Px,
+                            bool include_DCs);
+  void GetConstraintMassLump(mfem::Vector &lump) {
     lump.SetSize(Mlumped.Size());
     lump.Set(1.0, Mlumped);
   }

@@ -165,7 +165,6 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
   HdthE.reset(GenerateNullHypreParMatrix(dofOffsetsU, dofOffsetsU));
 }
 
-
 // Parametrized Obstacle Problem, essential boundary conditions enforced
 // Hessian of energy term is K + M (stiffness + mass)
 ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
@@ -176,7 +175,8 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
     : ParamOptProblem() {
   Vh = fesU_;
   dimU = Vh->GetTrueVSize();
-  uDC.SetSize(dimU); uDC = 0.0;
+  uDC.SetSize(dimU);
+  uDC = 0.0;
   MFEM_VERIFY(ud.Size() == dimU, "ud is not correct size");
   dimM = dimU - tdof_list.Size();
   auto tempUOffsets = offsetsFromLocalSizes(dimU, MPI_COMM_WORLD);
@@ -196,8 +196,7 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
   P.reset(R->Transpose());
 
   Kform.reset(new mfem::ParBilinearForm(Vh));
-  if (tdof_list.Size() == 0)
-  {
+  if (tdof_list.Size() == 0) {
     Kform->AddDomainIntegrator(new mfem::MassIntegrator);
   }
   Kform->AddDomainIntegrator(new mfem::DiffusionIntegrator);
@@ -211,19 +210,21 @@ ParamObstacleProblem::ParamObstacleProblem(mfem::ParFiniteElementSpace *fesU_,
   f.SetSize(dimU);
   fform->ParallelAssemble(f);
   Kform->EliminateVDofsInRHS(tdof_list, uDC, f);
-  
+
   mfem::Array<int> empty_tdof_list;
   Mform.reset(new mfem::ParBilinearForm(Vh));
   Mform->AddDomainIntegrator(new mfem::MassIntegrator);
   Mform->Assemble();
   Mform->Finalize();
   Mform->FormSystemMatrix(empty_tdof_list, M);
-  mfem::Vector one(M.Width()); one = 1.0;
-  
+  mfem::Vector one(M.Width());
+  one = 1.0;
+
   mfem::Vector Mlumped_full(M.Height());
   Mlumped_full = 0.0;
   M.Mult(one, Mlumped_full);
-  Mlumped.SetSize(R->Height()); Mlumped = 0.0;
+  Mlumped.SetSize(R->Height());
+  Mlumped = 0.0;
   R->Mult(Mlumped_full, Mlumped);
   std::unique_ptr<mfem::HypreParMatrix> Mlumped_mat;
   Mlumped_mat.reset(GenerateHypreParMatrixFromDiagonal(dofOffsetsM, Mlumped));
@@ -330,23 +331,19 @@ mfem::Operator *ParamObstacleProblem::Ddthgl(const mfem::Vector &d,
   return Hdthgl.get();
 }
 
-void ParamObstacleProblem::ProlongateToFullDofs(const mfem::Vector &x, mfem::Vector &Px, bool include_DCs)
-{
-   if (P.get())
-   {
-      MFEM_VERIFY(x.Size() == P->Width(), "Size issue");   
-      MFEM_VERIFY(Px.Size() == P->Height(), "Size issue");
-      P->Mult(x, Px);   
-   }
-   else
-   {
-      Px.Set(1.0, x);
-   }
-   if (include_DCs)
-   {
-      Px.Add(1.0, uDC);
-   }
+void ParamObstacleProblem::ProlongateToFullDofs(const mfem::Vector &x,
+                                                mfem::Vector &Px,
+                                                bool include_DCs) {
+  if (P.get()) {
+    MFEM_VERIFY(x.Size() == P->Width(), "Size issue");
+    MFEM_VERIFY(Px.Size() == P->Height(), "Size issue");
+    P->Mult(x, Px);
+  } else {
+    Px.Set(1.0, x);
+  }
+  if (include_DCs) {
+    Px.Add(1.0, uDC);
+  }
 }
-
 
 ParamObstacleProblem::~ParamObstacleProblem() {}

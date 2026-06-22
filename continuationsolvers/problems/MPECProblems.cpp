@@ -76,17 +76,17 @@ MPECProblem::MPECProblem(ParamOptProblem *paramopt_) : OptEqProblem() {
   diag = -1.0;
   dg2dz.reset(
       GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsM(), diag));
-  
-  slackScale.SetSize(paramopt->GetDimM()); slackScale = 1.0;
+
+  slackScale.SetSize(paramopt->GetDimM());
+  slackScale = 1.0;
   mfem::Vector tempMassLump(paramopt->GetDimM());
   tempMassLump = 1.0;
-  ParamObstacleProblem * temp_ptr = dynamic_cast<ParamObstacleProblem*>(paramopt);
-  if (temp_ptr)
-  {
-     temp_ptr->GetConstraintMassLump(tempMassLump);
+  ParamObstacleProblem *temp_ptr =
+      dynamic_cast<ParamObstacleProblem *>(paramopt);
+  if (temp_ptr) {
+    temp_ptr->GetConstraintMassLump(tempMassLump);
   }
   slackScale /= tempMassLump;
-
 }
 
 double MPECProblem::E(const mfem::Vector &U, int &eval_err) {
@@ -257,8 +257,8 @@ void MPECProblem::RegularizedComplementarity(const mfem::Vector &s,
   ss.Set(1.0, s);
   ss *= slackScale;
   for (int i = 0; i < s.Size(); i++) {
-    phi(i) =
-        ss(i) + z(i) - std::pow(std::pow(ss(i), 2) + std::pow(z(i), 2) + mu, 0.5);
+    phi(i) = ss(i) + z(i) -
+             std::pow(std::pow(ss(i), 2) + std::pow(z(i), 2) + mu, 0.5);
   }
 }
 
@@ -275,7 +275,9 @@ mfem::Operator *MPECProblem::DsRegularizedComplementarity(const mfem::Vector &s,
   ss *= slackScale;
   for (int i = 0; i < s.Size(); i++) {
     diag(i) =
-        slackScale(i) * (1.0 - ss(i) / std::pow(std::pow(ss(i), 2) + std::pow(z(i), 2) + mu, 0.5));
+        slackScale(i) *
+        (1.0 -
+         ss(i) / std::pow(std::pow(ss(i), 2) + std::pow(z(i), 2) + mu, 0.5));
   }
   DsPhi.reset(
       GenerateHypreParMatrixFromDiagonal(paramopt->GetDofOffsetsM(), diag));
@@ -316,7 +318,7 @@ mfem::Operator *MPECProblem::DsslRegularizedComplementarity(
   ss *= slackScale;
   for (int i = 0; i < s.Size(); i++) {
     diag(i) = -1.0 * std::pow(slackScale(i), 2) * (std::pow(z(i), 2) + mu) /
-                std::pow(std::pow(ss(i), 2) + std::pow(z(i), 2) + mu, 1.5);
+              std::pow(std::pow(ss(i), 2) + std::pow(z(i), 2) + mu, 1.5);
     diag(i) *= l(i);
   }
   DsslPhi.reset(
@@ -337,8 +339,8 @@ mfem::Operator *MPECProblem::DszlRegularizedComplementarity(
   ss.Set(1.0, s);
   ss *= slackScale;
   for (int i = 0; i < s.Size(); i++) {
-    diag(i) =
-        slackScale(i) * ss(i) * z(i) / std::pow(std::pow(ss(i), 2) + std::pow(z(i), 2) + mu, 1.5);
+    diag(i) = slackScale(i) * ss(i) * z(i) /
+              std::pow(std::pow(ss(i), 2) + std::pow(z(i), 2) + mu, 1.5);
     diag(i) *= l(i);
   }
   DszlPhi.reset(
@@ -565,18 +567,21 @@ double ObstacleDesignProblem::E(const mfem::Vector &U, int &eval_err) {
 double ObstacleDesignProblem::E(const mfem::Vector &u, const mfem::Vector &p,
                                 const mfem::Vector &theta, int &eval_err) {
   eval_err = 0;
-  mfem::Vector shift(theta.Size()); shift = 0.0;
-  mfem::Vector temp(theta.Size()); temp = 0.0;
+  mfem::Vector shift(theta.Size());
+  shift = 0.0;
+  mfem::Vector temp(theta.Size());
+  temp = 0.0;
   temp.Set(1.0, theta);
   temp.Add(-1.0, shift);
-  
+
   return 0.5 * InnerProduct(MPI_COMM_WORLD, temp, temp);
 }
 
 void ObstacleDesignProblem::DthE(const mfem::Vector &u, const mfem::Vector &p,
                                  const mfem::Vector &theta,
                                  mfem::Vector &gradE) {
-  mfem::Vector shift(theta.Size()); shift = 0.0;
+  mfem::Vector shift(theta.Size());
+  shift = 0.0;
   gradE.Set(1.0, theta);
   gradE.Add(-1.0, shift);
 }
