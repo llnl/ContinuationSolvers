@@ -283,15 +283,15 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
       }
 
       // solve regularized IP-Newton linear system
+      if (iAmRoot && printLevel > 3) {
+        *ipout << "deltaReg = " << deltaReg << "\n";
+      }
       zlhat = 0.0;
       Xhatuml = 0.0;
       IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k, passedCurvatureTest,
                     deltaReg);
       for (int numCurvatureTests = 0; numCurvatureTests < maxCurvatureTests;
            numCurvatureTests++) {
-        if (iAmRoot && printLevel > 3) {
-          *ipout << "deltaReg = " << deltaReg << "\n";
-        }
         if (passedCurvatureTest) {
           deltaRegLast = deltaReg;
           break;
@@ -304,6 +304,9 @@ void InteriorPointSolver::Mult(const mfem::BlockVector &x0,
         }
         // solve regularized IP-Newton linear system with updated regularization
         // param
+        if (iAmRoot && printLevel > 3) {
+          *ipout << "deltaReg = " << deltaReg << "\n";
+        }
         zlhat = 0.0;
         Xhatuml = 0.0;
         IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k, passedCurvatureTest,
