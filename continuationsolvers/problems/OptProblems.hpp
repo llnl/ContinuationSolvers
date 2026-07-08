@@ -15,6 +15,9 @@ protected:
   HYPRE_BigInt *dofOffsetsU;
   HYPRE_BigInt *dofOffsetsM;
   mfem::Array<int> block_offsetsx;
+  mfem::Vector Mulump;
+  mfem::Vector Mmlump;
+  mfem::Vector Mclump;
   mfem::Vector ml;
   int label;
 
@@ -52,6 +55,7 @@ public:
   mfem::Vector Getml() const { return ml; };
   void setProblemLabel(int label_) { label = label_; };
   int getProblemLabel() { return label; };
+  void getLumpedMassWeights(mfem::Vector &Mu, mfem::Vector &Mm, mfem::Vector &Mc);
   ~GeneralOptProblem();
 };
 
