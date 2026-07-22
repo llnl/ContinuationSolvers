@@ -223,6 +223,9 @@ void InteriorPointSolver::Mult(const mfem::BlockVector& x0, mfem::BlockVector& x
     // A-2. Check convergence of overall optimization problem
     printOptimalityError = false;
     Eevalmu0 = E(xk, lk, zlk, printOptimalityError);
+    if (iAmRoot && printLevel > 1) {
+      *ipout << "Optimality error = " << Eevalmu0 << std::endl;
+    }
     if (Eevalmu0 < OptTol) {
       converged = true;
       if (iAmRoot && printLevel > 0) {
@@ -240,7 +243,6 @@ void InteriorPointSolver::Mult(const mfem::BlockVector& x0, mfem::BlockVector& x
       printOptimalityError = true;
       Eeval = E(xk, lk, zlk, mu_k, printOptimalityError);
       if (iAmRoot && printLevel > 1) {
-        *ipout << "Optimality error = " << Eevalmu0 << std::endl;
         *ipout << "Subproblem error = " << Eeval << ", mu = " << mu_k << std::endl;
       }
       if (Eeval < kEps * mu_k) {
@@ -380,8 +382,6 @@ void InteriorPointSolver::Mult(const mfem::BlockVector& x0, mfem::BlockVector& x
 void InteriorPointSolver::FormIPNewtonMat(mfem::BlockVector& x, mfem::Vector& l, mfem::Vector& zl,
                                           mfem::BlockOperator& Ak, const double& delta)
 {
-  // MFEM_VERIFY(!fullLagrangianHessian,
-  //             "only supporting partial Lagrangian of the Hessian");
   auto Huuf = dynamic_cast<mfem::HypreParMatrix*>(problem->Duuf(x));
   auto Humf = dynamic_cast<mfem::HypreParMatrix*>(problem->Dumf(x));
   auto Hmuf = dynamic_cast<mfem::HypreParMatrix*>(problem->Dmuf(x));
