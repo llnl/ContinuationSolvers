@@ -2,7 +2,7 @@
 #define QUARTIC_SPLINE_1D_HPP
 
 #include "mfem.hpp"
-#include "par_linear_1d_node_data.hpp"
+#include "linear_1d_node_data.hpp"
 
 #include <array>
 #include <memory>
