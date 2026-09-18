@@ -807,6 +807,7 @@ void ParQuarticSpline1D::Assemble()
    solved_ = false;
 }
 
+
 QuarticSolveResult ParQuarticSpline1D::Solve(
    const QuarticSolveOptions &options)
 {
@@ -915,8 +916,12 @@ ParQuarticSpline1D::LocalCoefficients(int local_element) const
    return result;
 }
 
+
+//
+// y(x) = (a[n] * t + a[n-1]) *t + a[n-2] + ...
+// y'(x) = n * a[n] * t^(n-1) + ...
 mfem::real_t ParQuarticSpline1D::EvaluateLocalElement(
-   int local_element, mfem::real_t x) const
+   int local_element, mfem::real_t x, int d) const
 {
    MFEM_VERIFY(local_element >= 0 &&
                   local_element < static_cast<int>(intervals_.size()),
@@ -926,17 +931,19 @@ mfem::real_t ParQuarticSpline1D::EvaluateLocalElement(
    MFEM_VERIFY((x > interval.x_left || Near(x, interval.x_left)) &&
                   (x < interval.x_right || Near(x, interval.x_right)),
                "Evaluation point is outside the requested local interval.");
+   MFEM_VERIFY(d >= 0, "Derivative order (d) must be non-negative");
 
    const auto a = LocalCoefficients(local_element);
    const mfem::real_t h = interval.x_right - interval.x_left;
    const mfem::real_t t = (x - interval.x_right) / h;
-   mfem::real_t value = a[order];
-   for (int j = order - 1; j >= 0; --j) { value = value * t + a[j]; }
+   mfem::real_t value = a[order] * FallingFactorial(order, d);
+   for (int j = order - 1; j >= d; --j) { value = value * t + a[j] * FallingFactorial(j, d); }
+   value /= std::pow(h, d);
    return value;
 }
 
 bool ParQuarticSpline1D::TryEvaluateLocal(mfem::real_t x,
-                                          mfem::real_t &value) const
+                                          mfem::real_t &value, int d) const
 {
    MFEM_VERIFY(solved_, "Solve the spline system before evaluation.");
    for (const Interval &interval : intervals_)
@@ -944,14 +951,14 @@ bool ParQuarticSpline1D::TryEvaluateLocal(mfem::real_t x,
       if ((x > interval.x_left || Near(x, interval.x_left)) &&
           (x < interval.x_right || Near(x, interval.x_right)))
       {
-         value = EvaluateLocalElement(interval.local_element, x);
+         value = EvaluateLocalElement(interval.local_element, x, d);
          return true;
       }
    }
    return false;
 }
 
-mfem::real_t ParQuarticSpline1D::Evaluate(mfem::real_t x) const
+mfem::real_t ParQuarticSpline1D::Evaluate(mfem::real_t x, int d) const
 {
    MFEM_VERIFY(solved_, "Solve the spline system before evaluation.");
 
@@ -977,7 +984,7 @@ mfem::real_t ParQuarticSpline1D::Evaluate(mfem::real_t x) const
                "Evaluation point is outside the global spline interval.");
 
    mfem::real_t value = 0.0;
-   const bool can_evaluate = TryEvaluateLocal(x, value);
+   const bool can_evaluate = TryEvaluateLocal(x, value, d);
    const int no_candidate = std::numeric_limits<int>::max();
    const int local_candidate_rank = can_evaluate ? rank_ : no_candidate;
    int evaluator_rank = no_candidate;
@@ -993,6 +1000,113 @@ mfem::real_t ParQuarticSpline1D::Evaluate(mfem::real_t x) const
              evaluator_rank, comm_);
    return value;
 }
+
+
+
+mfem::Vector ParQuarticSpline1D::Evaluate(const mfem::Vector &evaluation_pts, int d) const
+{
+   MFEM_VERIFY(solved_, "Solve the spline system before evaluation.");
+
+   // local_count --> number of points given rank wants to query
+   const int local_count = static_cast<int>(evaluation_pts.Size());
+   // collect all local query points and check that they are all valid points
+   // that is they are within the valid spline interpolation bounds
+   const mfem::real_t *evaluation_pts_data = evaluation_pts.HostRead();
+   std::vector<mfem::real_t> local_queries(
+      static_cast<std::size_t>(local_count));
+   int local_queries_are_valid = 1;
+   for (int i = 0; i < local_count; ++i)
+   {
+      const mfem::real_t query = evaluation_pts_data[i];
+      local_queries[static_cast<std::size_t>(i)] = query;
+      if (!std::isfinite(query) || query < global_x_left_ ||
+          query > global_x_right_)
+      {
+         local_queries_are_valid = 0;
+      }
+   }
+
+   int every_query_is_valid = 0;
+   MPI_Allreduce(&local_queries_are_valid, &every_query_is_valid, 1,
+                 MPI_INT, MPI_MIN, comm_);
+   MFEM_VERIFY(every_query_is_valid == 1,
+               "Every displaced node must be finite and remain in the "
+               "global spline interval.");
+   
+   // how many queries per process, expose that info to each rank
+   int number_of_ranks = 0;
+   MPI_Comm_size(comm_, &number_of_ranks);
+   std::vector<int> query_counts(static_cast<std::size_t>(number_of_ranks), 0);
+   MPI_Allgather(&local_count, 1, MPI_INT, query_counts.data(), 1, MPI_INT,
+                 comm_);
+
+   std::vector<int> query_displacements(
+      static_cast<std::size_t>(number_of_ranks), 0);
+   int global_query_count = 0;
+   for (int r = 0; r < number_of_ranks; ++r)
+   {
+      MFEM_VERIFY(query_counts[static_cast<std::size_t>(r)] >= 0 &&
+                     query_counts[static_cast<std::size_t>(r)] <=
+                        std::numeric_limits<int>::max() - global_query_count,
+                  "The displaced-node batch exceeds MPI_Allgatherv limits.");
+      query_displacements[static_cast<std::size_t>(r)] = global_query_count;
+      global_query_count += query_counts[static_cast<std::size_t>(r)];
+   }
+
+   std::vector<mfem::real_t> global_queries(
+      static_cast<std::size_t>(global_query_count));
+   MPI_Allgatherv(local_queries.data(), local_count,
+                  mfem::MPITypeMap<mfem::real_t>::mpi_type,
+                  global_queries.data(), query_counts.data(),
+                  query_displacements.data(),
+                  mfem::MPITypeMap<mfem::real_t>::mpi_type, comm_);
+
+   const int no_candidate = std::numeric_limits<int>::max();
+   std::vector<int> local_candidate_ranks(
+      static_cast<std::size_t>(global_query_count), no_candidate);
+   std::vector<mfem::real_t> local_values(
+      static_cast<std::size_t>(global_query_count), 0.0);
+   for (int i = 0; i < global_query_count; ++i)
+   {
+      mfem::real_t value = 0.0;
+      if (TryEvaluateLocal(global_queries[static_cast<std::size_t>(i)], value))
+      {
+         local_candidate_ranks[static_cast<std::size_t>(i)] = rank_;
+         local_values[static_cast<std::size_t>(i)] = Evaluate(global_queries[static_cast<std::size_t>(i)], d);
+      }
+   }
+
+   std::vector<int> evaluator_ranks(
+      static_cast<std::size_t>(global_query_count), no_candidate);
+   MPI_Allreduce(local_candidate_ranks.data(), evaluator_ranks.data(),
+                 global_query_count, MPI_INT, MPI_MIN, comm_);
+   for (int i = 0; i < global_query_count; ++i)
+   {
+      MFEM_VERIFY(evaluator_ranks[static_cast<std::size_t>(i)] != no_candidate,
+                  "No MPI rank owns an interval containing a displaced node.");
+      if (evaluator_ranks[static_cast<std::size_t>(i)] != rank_)
+      {
+         local_values[static_cast<std::size_t>(i)] = 0.0;
+      }
+   }
+
+   std::vector<mfem::real_t> global_values(
+      static_cast<std::size_t>(global_query_count), 0.0);
+   MPI_Allreduce(local_values.data(), global_values.data(),
+                 global_query_count,
+                 mfem::MPITypeMap<mfem::real_t>::mpi_type, MPI_SUM, comm_);
+
+   mfem::Vector result(local_count);
+   mfem::real_t *result_data = result.HostWrite();
+   const int local_offset =
+      query_displacements[static_cast<std::size_t>(rank_)];
+   for (int i = 0; i < local_count; ++i)
+   {
+      result_data[i] =
+         global_values[static_cast<std::size_t>(local_offset + i)];
+   }
+   return result;
+};
 
 mfem::Vector ParQuarticSpline1D::EvaluateDisplacedNodes(
    const mfem::Vector &displacements) const
@@ -1012,7 +1126,10 @@ mfem::Vector ParQuarticSpline1D::EvaluateDisplacedNodes(
                "EvaluateDisplacedNodes requires one displacement for every "
                "coordinate in LocalNodeCoordinates() on each rank.");
 
+   // local_count --> number of points given rank wants to query
    const int local_count = static_cast<int>(coordinates.size());
+   // collect all local query points and check that they are all valid points
+   // that is they are within the valid spline interpolation bounds
    const mfem::real_t *displacement_data = displacements.HostRead();
    std::vector<mfem::real_t> local_queries(
       static_cast<std::size_t>(local_count));
@@ -1035,7 +1152,8 @@ mfem::Vector ParQuarticSpline1D::EvaluateDisplacedNodes(
    MFEM_VERIFY(every_query_is_valid == 1,
                "Every displaced node must be finite and remain in the "
                "global spline interval.");
-
+   
+   // how many queries per process, expose that info to each rank
    int number_of_ranks = 0;
    MPI_Comm_size(comm_, &number_of_ranks);
    std::vector<int> query_counts(static_cast<std::size_t>(number_of_ranks), 0);

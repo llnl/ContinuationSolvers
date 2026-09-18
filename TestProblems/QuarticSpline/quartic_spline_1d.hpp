@@ -106,14 +106,14 @@ public:
 
    /// Evaluate on a specified locally owned mesh interval.
    mfem::real_t EvaluateLocalElement(int local_element,
-                                     mfem::real_t x) const;
+                                     mfem::real_t x, int d=0) const;
 
    /**
     * Evaluate if x lies in at least one locally owned interval. At a shared
     * knot either adjacent rank can return the value. Returns false when x is
     * outside this rank's locally owned intervals.
     */
-   bool TryEvaluateLocal(mfem::real_t x, mfem::real_t &value) const;
+   bool TryEvaluateLocal(mfem::real_t x, mfem::real_t &value, int d = 0) const;
 
    /**
     * Collectively evaluate the spline at x and return the value on every
@@ -121,7 +121,7 @@ public:
     * the same x. If x is a shared knot, the lowest candidate rank performs
     * the evaluation and becomes the MPI broadcast root.
     */
-   mfem::real_t Evaluate(mfem::real_t x) const;
+   mfem::real_t Evaluate(mfem::real_t x, int d = 0) const;
 
    /// Coordinates corresponding to the local displacement-vector ordering.
    const std::vector<mfem::real_t> &LocalNodeCoordinates() const
@@ -138,6 +138,16 @@ public:
     */
    mfem::Vector EvaluateDisplacedNodes(
       const mfem::Vector &displacements) const;
+   
+  /**
+    * Collectively evaluate S(eval_pts_i) at all distributed eval_pts_i. 
+    * The returned Vector has the same local ordering
+    * and includes locally present copies of shared nodes. Each evaluation point
+    * may lie on an interval owned by some rank, i.e., every point must
+    * remain in the global spline interpolation interval.
+    */
+   mfem::Vector Evaluate(
+      const mfem::Vector &evaluation_pts, int d = 0) const;
 
 private:
    struct Neighbor
