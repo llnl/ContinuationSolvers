@@ -45,10 +45,15 @@ int main(int argc, char *argv[])
       mfem::H1_FECollection fec(1, 1);
       mfem::ParFiniteElementSpace fes(&parallel_mesh, &fec);
       mfem::ParGridFunction u(&fes);
-      auto true_function = [](const double x) { return std::sin(3.14*x); };      
+      mfem::ParGridFunction udir(&fes);
+      auto true_function = [](const double x) { return std::sin(3.14*x); };
+      auto dir_function = [](const double x) { return std::cos(3.14 * x); };      
       mfem::FunctionCoefficient sine(
          [true_function](const mfem::Vector &x) { return true_function(x[0]); });
+      mfem::FunctionCoefficient cosine(
+         [dir_function](const mfem::Vector &x) { return dir_function(x[0]); });
       u.ProjectCoefficient(sine);
+      udir.ProjectCoefficient(cosine);
       
 
 
@@ -149,8 +154,8 @@ int main(int argc, char *argv[])
         for (int d = 0; d <= 3; d++)
         {
            std::cout << "derivative order " << d << " continuity check about a knot\n";
-           mfem::real_t eps = 0.5 * x;
-           for (int i = 0; i < 20; i++)
+           mfem::real_t eps = 0.1 * x;
+           for (int i = 0; i < 6; i++)
            {
               mfem::real_t ffwd = spline.Evaluate(x + eps, d);
               mfem::real_t fbkwd = spline.Evaluate(x - eps, d);
@@ -159,7 +164,7 @@ int main(int argc, char *argv[])
               {
                  std::cout << "|f^(" << d <<")(" << x + eps << ") - f^(" << d << ")(" << x - eps << ")| = " << err << ", dx = " << 2.0 * eps << std::endl;
               }
-              eps *= 0.5;
+              eps *= 0.1;
            }
            std::cout << "\n\n";
                 
@@ -207,9 +212,37 @@ int main(int argc, char *argv[])
            paraview_dc.SetTime((double) (d+1));
            paraview_dc.Save();
         }
+     }
 
 
+     {
+        mfem::Vector y0(fes.GetTrueVSize());
+        mfem::Vector y1(fes.GetTrueVSize());
+        mfem::Vector ydir(fes.GetTrueVSize());
+        u.GetTrueDofs(y0);
+        y1 = 0.0;
+        udir.GetTrueDofs(ydir);
+        ydir.Randomize();
+        spline.SetInterpolationValues(y0);
+        spline.Solve();
+        auto grad_callback = spline.MakeDataGradientCallback();
+        mfem::Vector dy0 = grad_callback(sample_x);
+        
 
+        mfem::real_t deriv_y0 = mfem::InnerProduct(dy0, ydir);
+        mfem::real_t eps = 1.0;
+        for (int i = 0; i < 20; i ++)
+        {
+           y1.Set(1.0, y0);
+           y1.Add(eps, ydir);
+           spline.SetInterpolationValues(y1);
+           spline.Solve();
+           const mfem::real_t sample_value_y1 = spline.Evaluate(sample_x);
+           const mfem::real_t fd_deriv_y0 = (sample_value_y1 - sample_value) / eps;
+           const mfem::real_t fd_err = std::abs(fd_deriv_y0 - deriv_y0);
+           std::cout << "fd err = " << fd_err << ", eps = " << eps << std::endl;
+           eps *= 0.5;
+        }
      }
 
 

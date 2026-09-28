@@ -1329,7 +1329,7 @@ mfem::Vector ParQuarticSpline1D::EvaluateDisplacedNodes(
    return result;
 }
 
-void ParQuarticSpline1D::UpdateInterpolationValues(const mfem::Vector & ynew)
+void ParQuarticSpline1D::SetInterpolationValues(const mfem::Vector & ynew)
 {
    MFEM_VERIFY(ynew.Size() == input_space_->GetTrueVSize(),
                "Interpolation data must use the local true-DOF ordering.");

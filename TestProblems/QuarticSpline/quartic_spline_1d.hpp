@@ -169,6 +169,9 @@ public:
     * borrows this spline, so the spline must outlive every callback invocation.
     */
    DataGradientCallback MakeDataGradientCallback() const;
+   
+
+   void SetInterpolationValues(const mfem::Vector &ynew);
 
 private:
    struct Neighbor
@@ -275,7 +278,6 @@ private:
                       int derivative,
                       mfem::real_t row_scale) const;
 
-   void UpdateInterpolationValues(const mfem::Vector &ynew);
 };
 
 } // namespace spline
