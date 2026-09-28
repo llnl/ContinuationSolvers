@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
      // do some plotting
      {
         mfem::Mesh serial_fine_mesh =
-           mfem::Mesh::MakeCartesian1D(1000, 1.0);
+           mfem::Mesh::MakeCartesian1D(10 * number_of_intervals, 1.0);
         mfem::ParMesh parallel_fine_mesh(MPI_COMM_WORLD, serial_fine_mesh);
         mfem::ParFiniteElementSpace fes_fine(&parallel_fine_mesh, &fec);
         mfem::ParGridFunction ufine(&fes_fine);
