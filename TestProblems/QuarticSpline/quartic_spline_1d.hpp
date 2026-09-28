@@ -5,6 +5,7 @@
 #include "linear_1d_node_data.hpp"
 
 #include <array>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -58,6 +59,8 @@ class ParQuarticSpline1D
 public:
    static constexpr int order = 4;
    static constexpr int coefficients_per_interval = order + 1;
+   using DataGradientCallback =
+      std::function<mfem::Vector(mfem::real_t)>;
 
    explicit ParQuarticSpline1D(
       const mfem::ParGridFunction &input,
@@ -72,7 +75,7 @@ public:
    /// Assemble A and b. The constructor calls this once automatically.
    void Assemble();
 
-   /// Solve A a = b for the normalized coefficients with restarted GMRES.
+   /// Solve A a = b with MUMPS or restarted GMRES.
    QuarticSolveResult Solve(
       const QuarticSolveOptions &options = QuarticSolveOptions());
 
@@ -138,9 +141,8 @@ public:
     */
    mfem::Vector EvaluateDisplacedNodes(
       const mfem::Vector &displacements) const;
-   
-  /**
-    * Collectively evaluate S(eval_pts_i) at all distributed eval_pts_i. 
+   /**
+    * Collectively evaluate S(eval_pts_i) at all distributed eval_pts_i.
     * The returned Vector has the same local ordering
     * and includes locally present copies of shared nodes. Each evaluation point
     * may lie on an interval owned by some rank, i.e., every point must
@@ -148,6 +150,25 @@ public:
     */
    mfem::Vector Evaluate(
       const mfem::Vector &evaluation_pts, int d = 0) const;
+
+   /**
+    * Collectively return the gradient of S(x) with respect to the input
+    * interpolation values y. The result is the locally owned portion of the
+    * distributed true-DOF vector
+    *
+    *   grad_y S(x) = B^T A^{-T} grad_a S(x).
+    *
+    * All ranks must call this method with the same x. Solve() must previously
+    * have been called with direct_solver=true so the MUMPS factorization is
+    * available for the transpose solve.
+    */
+   mfem::Vector EvaluateDataGradient(mfem::real_t x) const;
+
+   /**
+    * Return a callback equivalent to EvaluateDataGradient(). The callback
+    * borrows this spline, so the spline must outlive every callback invocation.
+    */
+   DataGradientCallback MakeDataGradientCallback() const;
 
 private:
    struct Neighbor
@@ -219,6 +240,8 @@ private:
    std::unique_ptr<mfem::HypreParMatrix> rhs_data_jacobian_;
    std::unique_ptr<mfem::HypreParVector> rhs_;
    std::unique_ptr<mfem::HypreParVector> coefficients_;
+   // Declared after A_ so it is destroyed before the matrix it factorizes.
+   std::unique_ptr<mfem::Solver> direct_solver_;
    bool solved_ = false;
 
    void BuildIntervals();
@@ -251,6 +274,8 @@ private:
                       mfem::real_t x,
                       int derivative,
                       mfem::real_t row_scale) const;
+
+   void UpdateInterpolationValues(const mfem::Vector &ynew);
 };
 
 } // namespace spline

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <random>
 #include <vector>
 
 int main(int argc, char *argv[])
@@ -58,6 +59,26 @@ int main(int argc, char *argv[])
       const spline::QuarticSolveResult solve = spline.Solve();
       const mfem::real_t sample_x = 0.3713;
       const mfem::real_t sample_value = spline.Evaluate(sample_x);
+
+      // The callback returns the locally owned true-DOF portion of
+      // grad_y S(sample_x). Because the spline is linear in y, its pairing
+      // with the original interpolation data must reproduce S(sample_x).
+      const auto data_gradient_callback =
+         spline.MakeDataGradientCallback();
+      const mfem::Vector sample_data_gradient =
+         data_gradient_callback(sample_x);
+      mfem::Vector true_values(fes.GetTrueVSize());
+      u.GetTrueDofs(true_values);
+      mfem::real_t local_gradient_pairing = 0.0;
+      for (int i = 0; i < true_values.Size(); ++i)
+      {
+         local_gradient_pairing +=
+            sample_data_gradient[i] * true_values[i];
+      }
+      mfem::real_t gradient_pairing = 0.0;
+      MPI_Allreduce(&local_gradient_pairing, &gradient_pairing, 1,
+                    mfem::MPITypeMap<mfem::real_t>::mpi_type,
+                    MPI_SUM, MPI_COMM_WORLD);
 
       const std::vector<mfem::real_t> &local_nodes =
          spline.LocalNodeCoordinates();
@@ -116,6 +137,8 @@ int main(int argc, char *argv[])
 	 }
 	 std::cout << "spline(" << sample_x << ") = " << sample_value << '\n';
          std::cout << "sin(" << sample_x << ") = " << true_function(sample_x) << "\n";
+         std::cout << "|grad_y S . y - S| = "
+                   << std::abs(gradient_pairing - sample_value) << '\n';
          std::cout << "sampled max error: " << global_max_error << '\n';
       }
 

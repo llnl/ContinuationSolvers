@@ -624,6 +624,7 @@ void ParQuarticSpline1D::Assemble()
 {
    // Assemble() is public, so release vectors before replacing the matrices
    // whose parallel partitions they use.
+   direct_solver_.reset();
    coefficients_.reset();
    rhs_.reset();
    rhs_data_jacobian_.reset();
@@ -822,29 +823,32 @@ QuarticSolveResult ParQuarticSpline1D::Solve(
 
    QuarticSolveResult result;
    result.direct_solver = options.direct_solver;
+   direct_solver_.reset();
    *coefficients_ = 0.0;
    mfem::real_t rnorm_0 = 0.0;
    mfem::real_t rnorm_f = 0.0;
    rnorm_0 = mfem::GlobalLpNorm(2, rhs_->Norml2(), comm_);
    if (options.direct_solver)
-   { 
-     mfem::MUMPSSolver solver(comm_);
-     solver.SetOperator(*A_);
-     solver.Mult(*rhs_, *coefficients_);
-     mfem::Vector residual(rhs_->Size());
-     A_->Mult(*coefficients_, residual);
-     residual.Add(-1.0, *rhs_);
-     //std::cout << "||r|| = " << residual.Normlinf() << std::endl; 
-     rnorm_f = mfem::GlobalLpNorm(2, residual.Norml2(), comm_);
-     if (rnorm_f < options.relative_tolerance * rnorm_0 || rnorm_f < options.absolute_tolerance)
-     {
-        result.converged = true;
-     } 
-     else
-     {
-        result.converged = false;
-     }
-     solved_ = result.converged;
+   {
+      auto solver = std::make_unique<mfem::MUMPSSolver>(comm_);
+      solver->SetOperator(*A_);
+      solver->Mult(*rhs_, *coefficients_);
+      direct_solver_ = std::move(solver);
+      mfem::Vector residual(rhs_->Size());
+      A_->Mult(*coefficients_, residual);
+      residual.Add(-1.0, *rhs_);
+      //std::cout << "||r|| = " << residual.Normlinf() << std::endl;
+      rnorm_f = mfem::GlobalLpNorm(2, residual.Norml2(), comm_);
+      if (rnorm_f < options.relative_tolerance * rnorm_0 ||
+          rnorm_f < options.absolute_tolerance)
+      {
+         result.converged = true;
+      }
+      else
+      {
+         result.converged = false;
+      }
+      solved_ = result.converged;
    }
    else
    {
@@ -999,6 +1003,103 @@ mfem::real_t ParQuarticSpline1D::Evaluate(mfem::real_t x, int d) const
    MPI_Bcast(&value, 1, mfem::MPITypeMap<mfem::real_t>::mpi_type,
              evaluator_rank, comm_);
    return value;
+}
+
+mfem::Vector ParQuarticSpline1D::EvaluateDataGradient(
+   mfem::real_t x) const
+{
+   MFEM_VERIFY(solved_,
+               "Solve the spline system before evaluating its gradient.");
+   MFEM_VERIFY(direct_solver_ != nullptr,
+               "EvaluateDataGradient requires Solve() with "
+               "direct_solver=true.");
+   MFEM_VERIFY(A_ != nullptr && rhs_data_jacobian_ != nullptr,
+               "The spline derivative operators are unavailable.");
+
+   // As in Evaluate(), require every rank to participate with the same point.
+   const int local_x_is_finite = std::isfinite(x) ? 1 : 0;
+   int every_x_is_finite = 0;
+   MPI_Allreduce(&local_x_is_finite, &every_x_is_finite, 1, MPI_INT,
+                 MPI_MIN, comm_);
+   MFEM_VERIFY(every_x_is_finite == 1,
+               "EvaluateDataGradient requires a finite coordinate on every "
+               "rank.");
+
+   mfem::real_t minimum_requested_x = 0.0;
+   mfem::real_t maximum_requested_x = 0.0;
+   MPI_Allreduce(&x, &minimum_requested_x, 1,
+                 mfem::MPITypeMap<mfem::real_t>::mpi_type, MPI_MIN, comm_);
+   MPI_Allreduce(&x, &maximum_requested_x, 1,
+                 mfem::MPITypeMap<mfem::real_t>::mpi_type, MPI_MAX, comm_);
+   MFEM_VERIFY(minimum_requested_x == maximum_requested_x,
+               "Every rank must call EvaluateDataGradient with the same "
+               "coordinate.");
+   MFEM_VERIFY(x >= global_x_left_ && x <= global_x_right_,
+               "Gradient evaluation point is outside the global spline "
+               "interval.");
+
+   // Match Evaluate() at partition interfaces: the lowest candidate rank is
+   // selected, and that rank uses its first containing local interval.
+   int local_element = -1;
+   for (const Interval &interval : intervals_)
+   {
+      if ((x > interval.x_left || Near(x, interval.x_left)) &&
+          (x < interval.x_right || Near(x, interval.x_right)))
+      {
+         local_element = interval.local_element;
+         break;
+      }
+   }
+
+   const int no_candidate = std::numeric_limits<int>::max();
+   const int local_candidate_rank =
+      local_element >= 0 ? rank_ : no_candidate;
+   int evaluator_rank = no_candidate;
+   MPI_Allreduce(&local_candidate_rank, &evaluator_rank, 1, MPI_INT,
+                 MPI_MIN, comm_);
+   MFEM_VERIFY(evaluator_rank != no_candidate,
+               "No MPI rank owns an interval containing the gradient "
+               "evaluation point.");
+
+   // grad_a S(x) is zero except for the five normalized basis functions on
+   // the selected interval: [1, t, t^2, t^3, t^4].
+   mfem::HypreParVector coefficient_gradient(*A_);
+   coefficient_gradient = 0.0;
+   if (rank_ == evaluator_rank)
+   {
+      MFEM_VERIFY(local_element >= 0,
+                  "The selected evaluator rank has no containing interval.");
+      const Interval &interval =
+         intervals_[static_cast<std::size_t>(local_element)];
+      const mfem::real_t h = interval.x_right - interval.x_left;
+      const mfem::real_t t = (x - interval.x_right) / h;
+      const int offset = coefficients_per_interval * local_element;
+      mfem::real_t *gradient_data = coefficient_gradient.HostWrite();
+      mfem::real_t basis_value = 1.0;
+      for (int j = 0; j <= order; ++j)
+      {
+         gradient_data[offset + j] = basis_value;
+         basis_value *= t;
+      }
+   }
+
+   // A^T lambda = grad_a S(x), followed by grad_y S(x) = B^T lambda.
+   mfem::HypreParVector adjoint(*A_);
+   adjoint = 0.0;
+   direct_solver_->MultTranspose(coefficient_gradient, adjoint);
+
+   mfem::Vector data_gradient(input_space_->GetTrueVSize());
+   rhs_data_jacobian_->MultTranspose(adjoint, data_gradient);
+   return data_gradient;
+}
+
+ParQuarticSpline1D::DataGradientCallback
+ParQuarticSpline1D::MakeDataGradientCallback() const
+{
+   return [this](mfem::real_t x)
+   {
+      return EvaluateDataGradient(x);
+   };
 }
 
 
@@ -1227,5 +1328,16 @@ mfem::Vector ParQuarticSpline1D::EvaluateDisplacedNodes(
    }
    return result;
 }
+
+void ParQuarticSpline1D::UpdateInterpolationValues(const mfem::Vector & ynew)
+{
+   MFEM_VERIFY(ynew.Size() == input_space_->GetTrueVSize(),
+               "Interpolation data must use the local true-DOF ordering.");
+
+   rhs_data_jacobian_->Mult(ynew, *rhs_);
+   *coefficients_ = 0.0;
+   solved_ = false;
+}
+
 
 } // namespace spline
