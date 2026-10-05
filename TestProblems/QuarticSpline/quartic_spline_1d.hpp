@@ -85,8 +85,6 @@ class ParQuarticSpline1D
 public:
    static constexpr int order = 4;
    static constexpr int coefficients_per_interval = order + 1;
-   using DataGradientCallback =
-      std::function<mfem::Vector(mfem::real_t)>;
 
    explicit ParQuarticSpline1D(
       const mfem::ParGridFunction &input,
@@ -225,12 +223,6 @@ public:
     * available for the transpose solve.
     */
    mfem::Vector EvaluateDataGradient(mfem::real_t x) const;
-
-   /**
-    * Return a callback equivalent to EvaluateDataGradient(). The callback
-    * borrows this spline, so the spline must outlive every callback invocation.
-    */
-   DataGradientCallback MakeDataGradientCallback() const;
 
 private:
    struct Neighbor

@@ -1441,16 +1441,6 @@ mfem::Vector ParQuarticSpline1D::EvaluateDataGradient(
    return data_gradient;
 }
 
-ParQuarticSpline1D::DataGradientCallback
-ParQuarticSpline1D::MakeDataGradientCallback() const
-{
-   return [this](mfem::real_t x)
-   {
-      return EvaluateDataGradient(x);
-   };
-}
-
-
 
 mfem::Vector ParQuarticSpline1D::Evaluate(const mfem::Vector &evaluation_pts, int d) const
 {
