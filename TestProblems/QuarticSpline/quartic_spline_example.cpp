@@ -16,9 +16,27 @@ int main(int argc, char *argv[])
 
    {
       int number_of_intervals = 32;
+      bool minimum_curvature = false;
+      bool minimum_curvature_and_variation = false;
+      mfem::real_t curvature_variation_length_fraction = 1.0e-2;
       mfem::OptionsParser args(argc, argv);
       args.AddOption(&number_of_intervals, "-n", "--number-of-intervals",
                      "Number of intervals in [0,1].");
+      args.AddOption(&minimum_curvature,
+                     "-mc", "--minimum-curvature",
+                     "-fd", "--finite-difference-boundary-conditions",
+                     "Use minimum-curvature interpolation instead of "
+                     "finite-difference endpoint conditions.");
+      args.AddOption(
+         &minimum_curvature_and_variation,
+         "-mcv", "--minimum-curvature-and-variation",
+         "-no-mcv", "--no-minimum-curvature-and-variation",
+         "Minimize curvature and curvature variation while interpolating.");
+      args.AddOption(
+         &curvature_variation_length_fraction,
+         "-cvlf", "--curvature-variation-length-fraction",
+         "Length scale for the curvature-variation penalty as a fraction "
+         "of the global interpolation interval.");
       args.Parse();
       if (!args.Good())
       {
@@ -26,12 +44,20 @@ int main(int argc, char *argv[])
          MPI_Finalize();
          return 1;
       }
-      if (number_of_intervals < 2)
+      const bool finite_difference_mode =
+         !minimum_curvature && !minimum_curvature_and_variation;
+      if (number_of_intervals < 1 ||
+          (finite_difference_mode && number_of_intervals < 2) ||
+          curvature_variation_length_fraction < 0.0 ||
+          (minimum_curvature_and_variation &&
+           curvature_variation_length_fraction == 0.0))
       {
          if (rank == 0)
          {
-            std::cerr << "At least two intervals are needed for the "
-                         "three-point boundary differences.\n";
+            std::cerr << "At least one interval is required, and the "
+                         "finite-difference mode requires at least two. "
+                         "The curvature-variation length fraction must be "
+                         "nonnegative, and positive when -mcv is used.\n";
          }
          MPI_Finalize();
          return 2;
@@ -45,22 +71,25 @@ int main(int argc, char *argv[])
       mfem::H1_FECollection fec(1, 1);
       mfem::ParFiniteElementSpace fes(&parallel_mesh, &fec);
       mfem::ParGridFunction u(&fes);
-      mfem::ParGridFunction udir(&fes);
-      auto true_function = [](const double x) { return std::sin(3.14*x); };
-      auto dir_function = [](const double x) { return std::cos(3.14 * x); };      
+      auto true_function = [](const double x) { return std::sin(3.14*x); };      
       mfem::FunctionCoefficient sine(
          [true_function](const mfem::Vector &x) { return true_function(x[0]); });
-      mfem::FunctionCoefficient cosine(
-         [dir_function](const mfem::Vector &x) { return dir_function(x[0]); });
       u.ProjectCoefficient(sine);
-      udir.ProjectCoefficient(cosine);
       
 
 
 
-      // The spline obtains its three-point finite-difference boundary data
-      // directly from the distributed nodal values in u.
-      spline::ParQuarticSpline1D spline(u);
+      using InterpolationMode = spline::QuarticInterpolationMode;
+      spline::QuarticInterpolationOptions interpolation_options;
+      interpolation_options.mode =
+         minimum_curvature_and_variation
+            ? InterpolationMode::MinimumCurvatureAndVariation
+            : minimum_curvature
+                 ? InterpolationMode::MinimumCurvature
+                 : InterpolationMode::FiniteDifferenceBoundaryConditions;
+      interpolation_options.curvature_variation_length_fraction =
+         curvature_variation_length_fraction;
+      spline::ParQuarticSpline1D spline(u, interpolation_options);
       const spline::QuarticSolveResult solve = spline.Solve();
       const mfem::real_t sample_x = 0.3713;
       const mfem::real_t sample_value = spline.Evaluate(sample_x);
@@ -68,10 +97,8 @@ int main(int argc, char *argv[])
       // The callback returns the locally owned true-DOF portion of
       // grad_y S(sample_x). Because the spline is linear in y, its pairing
       // with the original interpolation data must reproduce S(sample_x).
-      const auto data_gradient_callback =
-         spline.MakeDataGradientCallback();
-      const mfem::Vector sample_data_gradient =
-         data_gradient_callback(sample_x);
+      const mfem::Vector sample_data_gradient = spline.EvaluateDataGradient(sample_x);
+         //data_gradient_callback(sample_x);
       mfem::Vector true_values(fes.GetTrueVSize());
       u.GetTrueDofs(true_values);
       mfem::real_t local_gradient_pairing = 0.0;
@@ -149,13 +176,14 @@ int main(int argc, char *argv[])
 
 
      // continuity check using Evaluate method
+     if (number_of_intervals > 1)
      {
         mfem::real_t x = 1. / number_of_intervals;
         for (int d = 0; d <= 3; d++)
         {
            std::cout << "derivative order " << d << " continuity check about a knot\n";
-           mfem::real_t eps = 0.1 * x;
-           for (int i = 0; i < 6; i++)
+           mfem::real_t eps = 0.5 * x;
+           for (int i = 0; i < 20; i++)
            {
               mfem::real_t ffwd = spline.Evaluate(x + eps, d);
               mfem::real_t fbkwd = spline.Evaluate(x - eps, d);
@@ -164,7 +192,7 @@ int main(int argc, char *argv[])
               {
                  std::cout << "|f^(" << d <<")(" << x + eps << ") - f^(" << d << ")(" << x - eps << ")| = " << err << ", dx = " << 2.0 * eps << std::endl;
               }
-              eps *= 0.1;
+              eps *= 0.5;
            }
            std::cout << "\n\n";
                 
@@ -212,37 +240,9 @@ int main(int argc, char *argv[])
            paraview_dc.SetTime((double) (d+1));
            paraview_dc.Save();
         }
-     }
 
 
-     {
-        mfem::Vector y0(fes.GetTrueVSize());
-        mfem::Vector y1(fes.GetTrueVSize());
-        mfem::Vector ydir(fes.GetTrueVSize());
-        u.GetTrueDofs(y0);
-        y1 = 0.0;
-        udir.GetTrueDofs(ydir);
-        ydir.Randomize();
-        spline.SetInterpolationValues(y0);
-        spline.Solve();
-        auto grad_callback = spline.MakeDataGradientCallback();
-        mfem::Vector dy0 = grad_callback(sample_x);
-        
 
-        mfem::real_t deriv_y0 = mfem::InnerProduct(dy0, ydir);
-        mfem::real_t eps = 1.0;
-        for (int i = 0; i < 20; i ++)
-        {
-           y1.Set(1.0, y0);
-           y1.Add(eps, ydir);
-           spline.SetInterpolationValues(y1);
-           spline.Solve();
-           const mfem::real_t sample_value_y1 = spline.Evaluate(sample_x);
-           const mfem::real_t fd_deriv_y0 = (sample_value_y1 - sample_value) / eps;
-           const mfem::real_t fd_err = std::abs(fd_deriv_y0 - deriv_y0);
-           std::cout << "fd err = " << fd_err << ", eps = " << eps << std::endl;
-           eps *= 0.5;
-        }
      }
 
 

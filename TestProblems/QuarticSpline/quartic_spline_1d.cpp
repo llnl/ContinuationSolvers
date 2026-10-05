@@ -41,26 +41,72 @@ struct VertexIncidence
    bool is_left = false;
 };
 
+QuarticInterpolationOptions MakeInterpolationOptions(
+   QuarticInterpolationMode mode, mfem::real_t coordinate_tolerance)
+{
+   QuarticInterpolationOptions options;
+   options.mode = mode;
+   options.coordinate_tolerance = coordinate_tolerance;
+   return options;
+}
+
 } // namespace
 
 ParQuarticSpline1D::ParQuarticSpline1D(
    const mfem::ParGridFunction &input,
    mfem::real_t coordinate_tolerance)
+   : ParQuarticSpline1D(
+        input,
+        MakeInterpolationOptions(
+           QuarticInterpolationMode::FiniteDifferenceBoundaryConditions,
+           coordinate_tolerance))
+{
+}
+
+ParQuarticSpline1D::ParQuarticSpline1D(
+   const mfem::ParGridFunction &input,
+   QuarticInterpolationMode interpolation_mode,
+   mfem::real_t coordinate_tolerance)
+   : ParQuarticSpline1D(
+        input,
+        MakeInterpolationOptions(interpolation_mode, coordinate_tolerance))
+{
+}
+
+ParQuarticSpline1D::ParQuarticSpline1D(
+   const mfem::ParGridFunction &input,
+   const QuarticInterpolationOptions &interpolation_options)
    : input_(&input),
      input_space_(input.ParFESpace()),
      mesh_(input_space_ ? input_space_->GetParMesh() : nullptr),
      comm_(mesh_ ? mesh_->GetComm() : MPI_COMM_NULL),
      rank_(mesh_ ? mesh_->GetMyRank() : -1),
-     coordinate_tolerance_(coordinate_tolerance),
+     coordinate_tolerance_(interpolation_options.coordinate_tolerance),
+     interpolation_mode_(interpolation_options.mode),
+     curvature_variation_length_fraction_(
+        interpolation_options.curvature_variation_length_fraction),
      node_data_(input)
 {
    MFEM_VERIFY(mesh_ != nullptr, "A valid ParMesh is required.");
    MFEM_VERIFY(coordinate_tolerance_ >= 0.0,
                "coordinate_tolerance must be nonnegative.");
+   MFEM_VERIFY(curvature_variation_length_fraction_ >= 0.0,
+               "curvature_variation_length_fraction must be nonnegative.");
+   if (interpolation_mode_ ==
+       QuarticInterpolationMode::MinimumCurvatureAndVariation)
+   {
+      MFEM_VERIFY(curvature_variation_length_fraction_ > 0.0,
+                  "MinimumCurvatureAndVariation requires a positive "
+                  "curvature-variation length fraction.");
+   }
 
    BuildIntervals();
    CompleteOffRankNeighbors();
-   BuildBoundaryStencils();
+   if (interpolation_mode_ ==
+       QuarticInterpolationMode::FiniteDifferenceBoundaryConditions)
+   {
+      BuildBoundaryStencils();
+   }
    Assemble();
 }
 
@@ -115,7 +161,7 @@ void ParQuarticSpline1D::BuildIntervals()
                   std::numeric_limits<HYPRE_BigInt>::max() /
                      coefficients_per_interval,
                "The quartic coefficient numbering overflows HYPRE_BigInt.");
-   global_system_size_ =
+   global_coefficient_size_ =
       coefficients_per_interval * global_number_of_intervals_;
 
    const HYPRE_BigInt local_system_size =
@@ -124,7 +170,7 @@ void ParQuarticSpline1D::BuildIntervals()
    mfem::Array<HYPRE_BigInt> *offset_arrays[1] = {&coefficient_offsets_};
    mesh_->GenerateOffsets(1, local_sizes, offset_arrays);
 
-   MFEM_VERIFY(coefficient_offsets_.Last() == global_system_size_,
+   MFEM_VERIFY(coefficient_offsets_.Last() == global_coefficient_size_,
                "Inconsistent global interval and coefficient counts.");
 
    mfem::Array<HYPRE_BigInt> global_elements;
@@ -622,14 +668,47 @@ void ParQuarticSpline1D::BuildCSR(
 
 void ParQuarticSpline1D::Assemble()
 {
-   // Assemble() is public, so release vectors before replacing the matrices
-   // whose parallel partitions they use.
+   // Assemble() is public, so release vectors and the retained factorization
+   // before replacing the matrices whose partitions they use.
    direct_solver_.reset();
    coefficients_.reset();
+   system_solution_.reset();
    rhs_.reset();
    rhs_data_jacobian_.reset();
    A_.reset();
 
+   if (interpolation_mode_ ==
+       QuarticInterpolationMode::FiniteDifferenceBoundaryConditions)
+   {
+      AssembleFiniteDifferenceSystem();
+   }
+   else
+   {
+      AssembleMinimumCurvatureSystem();
+   }
+
+   MFEM_VERIFY(A_ != nullptr && rhs_data_jacobian_ != nullptr,
+               "Spline matrix assembly failed.");
+
+   const int local_coefficient_size =
+      coefficients_per_interval * static_cast<int>(intervals_.size());
+   rhs_ = std::make_unique<mfem::HypreParVector>(*A_);
+   system_solution_ = std::make_unique<mfem::HypreParVector>(*A_);
+   coefficients_ = std::make_unique<mfem::HypreParVector>(
+      comm_, global_coefficient_size_, coefficient_offsets_.GetData());
+   MFEM_VERIFY(coefficients_->Size() == local_coefficient_size,
+               "Unexpected local coefficient-vector size.");
+   MFEM_VERIFY(rhs_->Size() == system_solution_->Size() &&
+                  rhs_->Size() == A_->GetNumRows(),
+               "Unexpected local spline-system vector size.");
+
+   mfem::Vector true_values(input_space_->GetTrueVSize());
+   input_->GetTrueDofs(true_values);
+   SetInterpolationValues(true_values);
+}
+
+void ParQuarticSpline1D::AssembleFiniteDifferenceSystem()
+{
    const int local_ne = static_cast<int>(intervals_.size());
    const int local_rows = coefficients_per_interval * local_ne;
    std::vector<std::vector<RowEntry>> rows(
@@ -783,36 +862,294 @@ void ParQuarticSpline1D::Assemble()
    BuildCSR(rhs_data_rows, rhs_data_I, rhs_data_J, rhs_data_values);
 
    A_ = std::make_unique<mfem::HypreParMatrix>(
-      comm_, local_rows, global_system_size_, global_system_size_, I.data(),
+      comm_, local_rows, global_coefficient_size_,
+      global_coefficient_size_, I.data(),
       J.data(), data.data(), coefficient_offsets_.GetData(),
       coefficient_offsets_.GetData());
 
    rhs_data_jacobian_ = std::make_unique<mfem::HypreParMatrix>(
-      comm_, local_rows, global_system_size_,
+      comm_, local_rows, global_coefficient_size_,
       input_space_->GlobalTrueVSize(), rhs_data_I.data(),
       rhs_data_J.data(), rhs_data_values.data(),
       coefficient_offsets_.GetData(), input_space_->GetTrueDofOffsets());
+}
 
-   // A is square with identical row and column partitions. Constructing the
-   // vectors from A avoids any dependence on an auxiliary FE space.
-   rhs_ = std::make_unique<mfem::HypreParVector>(*A_);
-   coefficients_ = std::make_unique<mfem::HypreParVector>(*A_);
-   MFEM_VERIFY(rhs_->Size() == local_rows &&
-                  coefficients_->Size() == local_rows,
-               "Unexpected local Hypre vector size.");
+void ParQuarticSpline1D::AssembleMinimumCurvatureSystem()
+{
+   const int local_ne = static_cast<int>(intervals_.size());
+   const int local_coefficient_size = coefficients_per_interval * local_ne;
 
-   mfem::Vector true_values(input_space_->GetTrueVSize());
-   input_->GetTrueDofs(true_values);
-   rhs_data_jacobian_->Mult(true_values, *rhs_);
+   int local_constraint_count = 0;
+   for (const Interval &interval : intervals_)
+   {
+      // Two interpolation equations per interval, one C1 equation at every
+      // non-boundary right endpoint, and C2/C3 equations at every
+      // non-boundary left endpoint.
+      local_constraint_count += 2;
+      if (!interval.physical_right_boundary) { ++local_constraint_count; }
+      if (!interval.physical_left_boundary) { local_constraint_count += 2; }
+   }
+
+   const HYPRE_BigInt global_constraint_count =
+      global_coefficient_size_ - 3;
+   MFEM_VERIFY(global_coefficient_size_ <=
+                  std::numeric_limits<HYPRE_BigInt>::max() -
+                     global_constraint_count,
+               "The minimum-curvature KKT size overflows HYPRE_BigInt.");
+   const HYPRE_BigInt global_kkt_size =
+      global_coefficient_size_ + global_constraint_count;
+   const int local_kkt_size =
+      local_coefficient_size + local_constraint_count;
+   HYPRE_BigInt local_sizes[2] =
+   {
+      static_cast<HYPRE_BigInt>(local_constraint_count),
+      static_cast<HYPRE_BigInt>(local_kkt_size)
+   };
+   mfem::Array<HYPRE_BigInt> *offset_arrays[2] =
+   {
+      &constraint_offsets_, &system_offsets_
+   };
+   mesh_->GenerateOffsets(2, local_sizes, offset_arrays);
+   MFEM_VERIFY(constraint_offsets_.Last() == global_constraint_count,
+               "Inconsistent minimum-curvature constraint count.");
+   MFEM_VERIFY(system_offsets_.Last() == global_kkt_size,
+               "Inconsistent minimum-curvature KKT size.");
+
+   std::vector<std::vector<RowEntry>> roughness_rows(
+      static_cast<std::size_t>(local_coefficient_size));
+   std::vector<std::vector<RowEntry>> constraint_rows(
+      static_cast<std::size_t>(local_constraint_count));
+   std::vector<std::vector<RowEntry>> constraint_data_rows(
+      static_cast<std::size_t>(local_constraint_count));
+
+   const auto add_constraint_data_entry =
+      [&constraint_data_rows](int local_row,
+                              HYPRE_BigInt global_true_dof,
+                              mfem::real_t value)
+      {
+         MFEM_ASSERT(local_row >= 0 &&
+                        local_row <
+                           static_cast<int>(constraint_data_rows.size()),
+                     "Invalid minimum-curvature constraint row.");
+         MFEM_ASSERT(global_true_dof >= 0,
+                     "Invalid global true-DOF column.");
+         if (value != 0.0)
+         {
+            constraint_data_rows[static_cast<std::size_t>(local_row)]
+               .push_back({global_true_dof, value});
+         }
+      };
+
+   // Multiplying the entire objective by a positive constant does not change
+   // its constrained minimizer. The scale below keeps uniform-mesh element
+   // blocks O(1), including when the third-derivative term is active.
+   const mfem::real_t global_length =
+      global_x_right_ - global_x_left_;
+   const mfem::real_t average_h =
+      global_length /
+      static_cast<mfem::real_t>(global_number_of_intervals_);
+   const bool penalize_curvature_variation =
+      interpolation_mode_ ==
+         QuarticInterpolationMode::MinimumCurvatureAndVariation;
+   const mfem::real_t curvature_variation_length =
+      penalize_curvature_variation
+         ? curvature_variation_length_fraction_ * global_length
+         : 0.0;
+   const mfem::real_t average_relative_variation_strength =
+      curvature_variation_length / average_h;
+   const mfem::real_t objective_scale =
+      (average_h * average_h * average_h) /
+      (1.0 + average_relative_variation_strength *
+               average_relative_variation_strength);
+
+   int constraint_row = 0;
+   for (const Interval &interval : intervals_)
+   {
+      const int local_element = interval.local_element;
+      const mfem::real_t h = interval.x_right - interval.x_left;
+      MFEM_ASSERT(h > 0.0, "A positive interval length is required.");
+
+      // Element Gram matrices in the normalized monomial basis t^j,
+      // t=(x-x_right)/h and t in [-1,0]. The derivative=2 term represents
+      // integral (S'')^2 dx. In MinimumCurvatureAndVariation mode, the
+      // derivative=3 term adds ell^2 integral (S''')^2 dx, with
+      // ell=curvature_variation_length.
+      for (int derivative = 2; derivative <= 3; ++derivative)
+      {
+         const mfem::real_t derivative_weight =
+            derivative == 2
+               ? 1.0
+               : curvature_variation_length *
+                    curvature_variation_length;
+         if (derivative_weight == 0.0) { continue; }
+
+         const mfem::real_t element_scale =
+            objective_scale * derivative_weight /
+            IntegerPower(h, 2 * derivative - 1);
+         for (int j = derivative; j <= order; ++j)
+         {
+            const int local_row =
+               coefficients_per_interval * local_element + j;
+            for (int k = derivative; k <= order; ++k)
+            {
+               const int exponent = j + k - 2 * derivative;
+               const mfem::real_t monomial_integral =
+                  (exponent % 2 == 0 ? 1.0 : -1.0) /
+                  static_cast<mfem::real_t>(exponent + 1);
+               const mfem::real_t value =
+                  element_scale * FallingFactorial(j, derivative) *
+                  FallingFactorial(k, derivative) * monomial_integral;
+               AddEntry(
+                  roughness_rows[static_cast<std::size_t>(local_row)],
+                  interval.global_interval, k, value);
+            }
+         }
+      }
+
+      const mfem::real_t derivative_row_scale[order + 1] =
+      {
+         1.0, h, h * h, h * h * h, h * h * h * h
+      };
+
+      // Exact interpolation at both endpoints of every interval. Repeating
+      // a shared data value on its two adjacent intervals also enforces C0.
+      AddDerivative(
+         constraint_rows[static_cast<std::size_t>(constraint_row)],
+         interval.global_interval, interval.x_right, h,
+         interval.x_left, 0, 1.0);
+      add_constraint_data_entry(
+         constraint_row, interval.left_global_true_dof, 1.0);
+      ++constraint_row;
+
+      AddEntry(constraint_rows[static_cast<std::size_t>(constraint_row)],
+               interval.global_interval, 0, 1.0);
+      add_constraint_data_entry(
+         constraint_row, interval.right_global_true_dof, 1.0);
+      ++constraint_row;
+
+      if (!interval.physical_right_boundary)
+      {
+         MFEM_VERIFY(interval.right_neighbor.IsSet(),
+                     "Missing the interval to the right.");
+         AddDerivative(
+            constraint_rows[static_cast<std::size_t>(constraint_row)],
+            interval.right_neighbor.global_interval,
+            interval.right_neighbor.x_right,
+            interval.right_neighbor.x_right -
+               interval.right_neighbor.x_left,
+            interval.x_right, 1, derivative_row_scale[1]);
+         AddDerivative(
+            constraint_rows[static_cast<std::size_t>(constraint_row)],
+            interval.global_interval, interval.x_right, h,
+            interval.x_right, 1, -derivative_row_scale[1]);
+         ++constraint_row;
+      }
+
+      if (!interval.physical_left_boundary)
+      {
+         MFEM_VERIFY(interval.left_neighbor.IsSet(),
+                     "Missing the interval to the left.");
+         for (int derivative = 2; derivative <= 3; ++derivative)
+         {
+            AddDerivative(
+               constraint_rows[static_cast<std::size_t>(constraint_row)],
+               interval.global_interval, interval.x_right, h,
+               interval.x_left, derivative,
+               derivative_row_scale[derivative]);
+            AddDerivative(
+               constraint_rows[static_cast<std::size_t>(constraint_row)],
+               interval.left_neighbor.global_interval,
+               interval.left_neighbor.x_right,
+               interval.left_neighbor.x_right -
+                  interval.left_neighbor.x_left,
+               interval.x_left, derivative,
+               -derivative_row_scale[derivative]);
+            ++constraint_row;
+         }
+      }
+   }
+   MFEM_VERIFY(constraint_row == local_constraint_count,
+               "Incorrect local minimum-curvature constraint count.");
+
+   std::vector<int> roughness_I;
+   std::vector<HYPRE_BigInt> roughness_J;
+   std::vector<mfem::real_t> roughness_data;
+   BuildCSR(roughness_rows, roughness_I, roughness_J, roughness_data);
+
+   std::vector<int> constraint_I;
+   std::vector<HYPRE_BigInt> constraint_J;
+   std::vector<mfem::real_t> constraint_data;
+   BuildCSR(constraint_rows, constraint_I, constraint_J, constraint_data);
+
+   std::vector<std::vector<RowEntry>> system_data_rows(
+      static_cast<std::size_t>(local_kkt_size));
+   for (int row = 0; row < local_constraint_count; ++row)
+   {
+      system_data_rows[static_cast<std::size_t>(
+         local_coefficient_size + row)] =
+            std::move(constraint_data_rows[static_cast<std::size_t>(row)]);
+   }
+   std::vector<int> system_rhs_I;
+   std::vector<HYPRE_BigInt> system_rhs_J;
+   std::vector<mfem::real_t> system_rhs_data;
+   BuildCSR(system_data_rows, system_rhs_I, system_rhs_J, system_rhs_data);
+
+   auto roughness = std::make_unique<mfem::HypreParMatrix>(
+      comm_, local_coefficient_size, global_coefficient_size_,
+      global_coefficient_size_, roughness_I.data(), roughness_J.data(),
+      roughness_data.data(), coefficient_offsets_.GetData(),
+      coefficient_offsets_.GetData());
+   auto constraints = std::make_unique<mfem::HypreParMatrix>(
+      comm_, local_constraint_count, global_constraint_count,
+      global_coefficient_size_, constraint_I.data(), constraint_J.data(),
+      constraint_data.data(), constraint_offsets_.GetData(),
+      coefficient_offsets_.GetData());
+   std::unique_ptr<mfem::HypreParMatrix> constraints_transpose(
+      constraints->Transpose());
+
+   mfem::Array2D<mfem::HypreParMatrix *> system_blocks(2, 2);
+   system_blocks(0, 0) = roughness.get();
+   system_blocks(0, 1) = constraints_transpose.get();
+   system_blocks(1, 0) = constraints.get();
+   system_blocks(1, 1) = nullptr;
+   A_.reset(mfem::HypreParMatrixFromBlocks(system_blocks));
+   rhs_data_jacobian_ = std::make_unique<mfem::HypreParMatrix>(
+      comm_, local_kkt_size, global_kkt_size,
+      input_space_->GlobalTrueVSize(), system_rhs_I.data(),
+      system_rhs_J.data(), system_rhs_data.data(),
+      system_offsets_.GetData(), input_space_->GetTrueDofOffsets());
+   MFEM_VERIFY(A_->GetNumRows() == local_kkt_size &&
+                  rhs_data_jacobian_->GetNumRows() == local_kkt_size,
+               "Inconsistent local minimum-curvature block ordering.");
+}
+
+void ParQuarticSpline1D::SetInterpolationValues(
+   const mfem::Vector &local_true_y)
+{
+   MFEM_VERIFY(rhs_data_jacobian_ != nullptr && rhs_ != nullptr &&
+                  system_solution_ != nullptr && coefficients_ != nullptr,
+               "Assemble the spline before updating interpolation values.");
+   MFEM_VERIFY(local_true_y.Size() == input_space_->GetTrueVSize(),
+               "Interpolation values must use the local true-DOF ordering.");
+
+   rhs_data_jacobian_->Mult(local_true_y, *rhs_);
+   *system_solution_ = 0.0;
    *coefficients_ = 0.0;
    solved_ = false;
+}
+
+void ParQuarticSpline1D::RefreshInterpolationValues()
+{
+   mfem::Vector true_values(input_space_->GetTrueVSize());
+   input_->GetTrueDofs(true_values);
+   SetInterpolationValues(true_values);
 }
 
 
 QuarticSolveResult ParQuarticSpline1D::Solve(
    const QuarticSolveOptions &options)
 {
-   MFEM_VERIFY(A_ && rhs_ && coefficients_,
+   MFEM_VERIFY(A_ && rhs_ && system_solution_ && coefficients_,
                "The spline system has not been assembled.");
    MFEM_VERIFY(options.relative_tolerance >= 0.0 &&
                   options.absolute_tolerance >= 0.0,
@@ -823,50 +1160,61 @@ QuarticSolveResult ParQuarticSpline1D::Solve(
 
    QuarticSolveResult result;
    result.direct_solver = options.direct_solver;
-   direct_solver_.reset();
+   *system_solution_ = 0.0;
    *coefficients_ = 0.0;
-   mfem::real_t rnorm_0 = 0.0;
-   mfem::real_t rnorm_f = 0.0;
-   rnorm_0 = mfem::GlobalLpNorm(2, rhs_->Norml2(), comm_);
+   const mfem::real_t rnorm_0 =
+      mfem::GlobalLpNorm(2, rhs_->Norml2(), comm_);
+   mfem::real_t rnorm_f = -1.0;
    if (options.direct_solver)
    {
-      auto solver = std::make_unique<mfem::MUMPSSolver>(comm_);
-      solver->SetOperator(*A_);
-      solver->Mult(*rhs_, *coefficients_);
-      direct_solver_ = std::move(solver);
+      if (direct_solver_ == nullptr)
+      {
+         auto solver = std::make_unique<mfem::MUMPSSolver>(comm_);
+         solver->SetPrintLevel(options.print_level);
+         if (interpolation_mode_ !=
+             QuarticInterpolationMode::FiniteDifferenceBoundaryConditions)
+         {
+            solver->SetMatrixSymType(
+               mfem::MUMPSSolver::SYMMETRIC_INDEFINITE);
+         }
+         solver->SetOperator(*A_);
+         direct_solver_ = std::move(solver);
+      }
+      direct_solver_->Mult(*rhs_, *system_solution_);
       mfem::Vector residual(rhs_->Size());
-      A_->Mult(*coefficients_, residual);
+      A_->Mult(*system_solution_, residual);
       residual.Add(-1.0, *rhs_);
-      //std::cout << "||r|| = " << residual.Normlinf() << std::endl;
       rnorm_f = mfem::GlobalLpNorm(2, residual.Norml2(), comm_);
-      if (rnorm_f < options.relative_tolerance * rnorm_0 ||
-          rnorm_f < options.absolute_tolerance)
-      {
-         result.converged = true;
-      }
-      else
-      {
-         result.converged = false;
-      }
-      solved_ = result.converged;
+      const mfem::real_t tolerance =
+         std::max(options.absolute_tolerance,
+                  options.relative_tolerance * rnorm_0);
+      result.converged = rnorm_f <= tolerance;
+      result.initial_norm = rnorm_0;
+      result.final_norm = rnorm_f;
    }
    else
    {
-     mfem::GMRESSolver gmres(comm_);
-     gmres.SetRelTol(options.relative_tolerance);
-     gmres.SetAbsTol(options.absolute_tolerance);
-     gmres.SetMaxIter(options.maximum_iterations);
-     gmres.SetKDim(options.krylov_dimension);
-     gmres.SetPrintLevel(3);
-     gmres.SetOperator(*A_);
-     gmres.Mult(*rhs_, *coefficients_);
-     result.converged = gmres.GetConverged();
-     result.iterations = gmres.GetNumIterations();
-     result.initial_norm = gmres.GetInitialNorm();
-     result.final_norm = gmres.GetFinalNorm();
-     solved_ = result.converged;
+      direct_solver_.reset();
+      mfem::GMRESSolver gmres(comm_);
+      gmres.SetRelTol(options.relative_tolerance);
+      gmres.SetAbsTol(options.absolute_tolerance);
+      gmres.SetMaxIter(options.maximum_iterations);
+      gmres.SetKDim(options.krylov_dimension);
+      gmres.SetPrintLevel(options.print_level);
+      gmres.SetOperator(*A_);
+      gmres.Mult(*rhs_, *system_solution_);
+      result.converged = gmres.GetConverged();
+      result.iterations = gmres.GetNumIterations();
+      result.initial_norm = gmres.GetInitialNorm();
+      result.final_norm = gmres.GetFinalNorm();
    }
-   
+
+   const int local_coefficient_size = coefficients_->Size();
+   const mfem::real_t *system_data = system_solution_->HostRead();
+   mfem::real_t *coefficient_data = coefficients_->HostWrite();
+   std::copy(system_data, system_data + local_coefficient_size,
+             coefficient_data);
+   solved_ = result.converged;
 
    if (options.require_convergence)
    {
@@ -1131,7 +1479,7 @@ mfem::Vector ParQuarticSpline1D::Evaluate(const mfem::Vector &evaluation_pts, in
    MPI_Allreduce(&local_queries_are_valid, &every_query_is_valid, 1,
                  MPI_INT, MPI_MIN, comm_);
    MFEM_VERIFY(every_query_is_valid == 1,
-               "Every displaced node must be finite and remain in the "
+               "Every evaluation point must be finite and remain in the "
                "global spline interval.");
    
    // how many queries per process, expose that info to each rank
@@ -1170,10 +1518,11 @@ mfem::Vector ParQuarticSpline1D::Evaluate(const mfem::Vector &evaluation_pts, in
    for (int i = 0; i < global_query_count; ++i)
    {
       mfem::real_t value = 0.0;
-      if (TryEvaluateLocal(global_queries[static_cast<std::size_t>(i)], value))
+      if (TryEvaluateLocal(global_queries[static_cast<std::size_t>(i)],
+                           value, d))
       {
          local_candidate_ranks[static_cast<std::size_t>(i)] = rank_;
-         local_values[static_cast<std::size_t>(i)] = Evaluate(global_queries[static_cast<std::size_t>(i)], d);
+         local_values[static_cast<std::size_t>(i)] = value;
       }
    }
 
@@ -1207,7 +1556,7 @@ mfem::Vector ParQuarticSpline1D::Evaluate(const mfem::Vector &evaluation_pts, in
          global_values[static_cast<std::size_t>(local_offset + i)];
    }
    return result;
-};
+}
 
 mfem::Vector ParQuarticSpline1D::EvaluateDisplacedNodes(
    const mfem::Vector &displacements) const
@@ -1328,16 +1677,5 @@ mfem::Vector ParQuarticSpline1D::EvaluateDisplacedNodes(
    }
    return result;
 }
-
-void ParQuarticSpline1D::SetInterpolationValues(const mfem::Vector & ynew)
-{
-   MFEM_VERIFY(ynew.Size() == input_space_->GetTrueVSize(),
-               "Interpolation data must use the local true-DOF ordering.");
-
-   rhs_data_jacobian_->Mult(ynew, *rhs_);
-   *coefficients_ = 0.0;
-   solved_ = false;
-}
-
 
 } // namespace spline

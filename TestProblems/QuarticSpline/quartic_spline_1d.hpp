@@ -32,6 +32,31 @@ struct QuarticSolveResult
    bool direct_solver = true;
 };
 
+enum class QuarticInterpolationMode
+{
+   FiniteDifferenceBoundaryConditions,
+   MinimumCurvature,
+   MinimumCurvatureAndVariation
+};
+
+struct QuarticInterpolationOptions
+{
+   QuarticInterpolationMode mode =
+      QuarticInterpolationMode::FiniteDifferenceBoundaryConditions;
+   mfem::real_t coordinate_tolerance = 0.0;
+
+   /**
+    * Dimensionless length eta used by MinimumCurvatureAndVariation:
+    *
+    *   integral [(S'')^2 + (eta L)^2 (S''')^2] dx,
+    *
+    * where L is the global interpolation-interval length. Thus eta=0.01
+    * penalizes curvature variation over a length scale equal to one percent
+    * of the global interval. This member is ignored by the other modes.
+    */
+   mfem::real_t curvature_variation_length_fraction = 1.0e-2;
+};
+
 /**
  * Parallel C3 quartic interpolating spline for a scalar P1 H1
  * mfem::ParGridFunction on a conforming one-dimensional mesh.
@@ -43,13 +68,14 @@ struct QuarticSolveResult
  * Thus a_{e,j} = h_e^j c_{e,j}, where c_{e,j} denotes the corresponding
  * coefficient in the unscaled physical-coordinate basis.
  *
- * There are five unknowns and five rows per mesh interval. Both rows and
- * columns are owned by the MPI rank that owns the interval. No auxiliary
- * finite element space is constructed: ParMesh supplies rank-contiguous
- * global element numbers and Hypre-compatible partition arrays directly.
- * Rows imposing an order-d derivative condition are scaled by h_e^d, where
- * h_e is the width of the interval that owns the row. This scaling reduces
- * dimensional imbalance without changing the represented spline.
+ * FiniteDifferenceBoundaryConditions reproduces the original square system
+ * with three one-sided finite-difference endpoint conditions.
+ * MinimumCurvature instead minimizes integral |S''|^2 subject to exact nodal
+ * interpolation and C1/C2/C3 continuity. It introduces Lagrange multipliers
+ * and solves the corresponding symmetric-indefinite KKT system; no endpoint
+ * derivative values are estimated in this mode.
+ * MinimumCurvatureAndVariation uses the same constraints and additionally
+ * penalizes |S'''|^2, which suppresses thin endpoint curvature layers.
  *
  * Construction and Solve() are collective on the ParMesh communicator.
  * The input ParGridFunction and its mesh/space must outlive this object.
@@ -66,6 +92,15 @@ public:
       const mfem::ParGridFunction &input,
       mfem::real_t coordinate_tolerance = 0.0);
 
+   ParQuarticSpline1D(
+      const mfem::ParGridFunction &input,
+      QuarticInterpolationMode interpolation_mode,
+      mfem::real_t coordinate_tolerance = 0.0);
+
+   ParQuarticSpline1D(
+      const mfem::ParGridFunction &input,
+      const QuarticInterpolationOptions &interpolation_options);
+
    ParQuarticSpline1D(const ParQuarticSpline1D &) = delete;
    ParQuarticSpline1D &operator=(const ParQuarticSpline1D &) = delete;
    ParQuarticSpline1D(ParQuarticSpline1D &&) = delete;
@@ -75,23 +110,48 @@ public:
    /// Assemble A and b. The constructor calls this once automatically.
    void Assemble();
 
-   /// Solve A a = b with MUMPS or restarted GMRES.
+   /// Solve the assembled finite-difference or KKT system.
    QuarticSolveResult Solve(
       const QuarticSolveOptions &options = QuarticSolveOptions());
 
+   /// The coefficient system, or the full KKT matrix in either variational mode.
    const mfem::HypreParMatrix &SystemMatrix() const;
    /**
     * Matrix B in b = B y, where y is the input GridFunction's distributed
-    * true-DOF vector. B includes the endpoint interpolation rows and all
-    * three finite-difference boundary conditions.
+    * true-DOF vector. In finite-difference mode B also includes the three
+    * endpoint derivative formulas. In either variational mode it is the
+    * block map [0; F] into the KKT right-hand side.
     *
-    * For an adjoint lambda satisfying A^T lambda = dF/da, the derivative
-    * with respect to the nodal data is B^T lambda.
+    * For an adjoint lambda satisfying A^T lambda = q, where q contains the
+    * coefficient evaluation gradient and zeros in any multiplier block, the
+    * derivative with respect to the nodal data is B^T lambda.
     */
    const mfem::HypreParMatrix &RightHandSideDataJacobian() const;
+   /// Full system right-hand side, including the KKT blocks when present.
    const mfem::HypreParVector &RightHandSide() const;
    /// Distributed vector of normalized coefficients a_{e,j}.
    const mfem::HypreParVector &CoefficientVector() const;
+
+   QuarticInterpolationMode InterpolationMode() const
+   {
+      return interpolation_mode_;
+   }
+
+   mfem::real_t CurvatureVariationLengthFraction() const
+   {
+      return curvature_variation_length_fraction_;
+   }
+
+   /**
+    * Collectively replace y while preserving the mesh coordinates and all
+    * assembled matrices. local_true_y uses the input finite element space's
+    * locally owned true-DOF ordering. A retained MUMPS factorization can be
+    * reused by the next Solve() call.
+    */
+   void SetInterpolationValues(const mfem::Vector &local_true_y);
+
+   /// Reload y from the ParGridFunction supplied to the constructor.
+   void RefreshInterpolationValues();
 
    HYPRE_BigInt GlobalNumberOfIntervals() const
    {
@@ -156,7 +216,9 @@ public:
     * interpolation values y. The result is the locally owned portion of the
     * distributed true-DOF vector
     *
-    *   grad_y S(x) = B^T A^{-T} grad_a S(x).
+    *   grad_y S(x) = B^T A^{-T} q(x),
+    *
+    * where q is grad_a S(x), extended by zeros for KKT multipliers.
     *
     * All ranks must call this method with the same x. Solve() must previously
     * have been called with direct_solver=true so the MUMPS factorization is
@@ -169,9 +231,6 @@ public:
     * borrows this spline, so the spline must outlive every callback invocation.
     */
    DataGradientCallback MakeDataGradientCallback() const;
-   
-
-   void SetInterpolationValues(const mfem::Vector &ynew);
 
 private:
    struct Neighbor
@@ -227,12 +286,17 @@ private:
    int rank_ = -1;
 
    mfem::real_t coordinate_tolerance_ = 0.0;
+   QuarticInterpolationMode interpolation_mode_ =
+      QuarticInterpolationMode::FiniteDifferenceBoundaryConditions;
+   mfem::real_t curvature_variation_length_fraction_ = 1.0e-2;
    ParLinear1DNodeData node_data_;
 
    std::vector<Interval> intervals_;
    mfem::Array<HYPRE_BigInt> coefficient_offsets_;
+   mfem::Array<HYPRE_BigInt> constraint_offsets_;
+   mfem::Array<HYPRE_BigInt> system_offsets_;
    HYPRE_BigInt global_number_of_intervals_ = 0;
-   HYPRE_BigInt global_system_size_ = 0;
+   HYPRE_BigInt global_coefficient_size_ = 0;
    mfem::real_t global_x_left_ = 0.0;
    mfem::real_t global_x_right_ = 0.0;
    BoundaryStencil left_boundary_stencil_;
@@ -242,6 +306,7 @@ private:
    std::unique_ptr<mfem::HypreParMatrix> A_;
    std::unique_ptr<mfem::HypreParMatrix> rhs_data_jacobian_;
    std::unique_ptr<mfem::HypreParVector> rhs_;
+   std::unique_ptr<mfem::HypreParVector> system_solution_;
    std::unique_ptr<mfem::HypreParVector> coefficients_;
    // Declared after A_ so it is destroyed before the matrix it factorizes.
    std::unique_ptr<mfem::Solver> direct_solver_;
@@ -250,6 +315,8 @@ private:
    void BuildIntervals();
    void CompleteOffRankNeighbors();
    void BuildBoundaryStencils();
+   void AssembleFiniteDifferenceSystem();
+   void AssembleMinimumCurvatureSystem();
 
    static BoundaryStencil MakeBoundaryStencil(
       const std::array<BoundaryNode, 3> &nodes);
@@ -277,7 +344,6 @@ private:
                       mfem::real_t x,
                       int derivative,
                       mfem::real_t row_scale) const;
-
 };
 
 } // namespace spline
