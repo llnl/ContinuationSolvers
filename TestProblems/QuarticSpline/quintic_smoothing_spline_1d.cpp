@@ -1046,6 +1046,126 @@ mfem::Vector ParQuinticSmoothingSpline1D::EvaluateDataGradient(
    return data_gradient;
 }
 
+mfem::HypreParMatrix ParQuinticSmoothingSpline1D::EvaluateDataJacobian(
+   const mfem::Vector &evaluation_points) const
+{
+   MFEM_VERIFY(solved_,
+               "Solve the spline system before evaluating its Jacobian.");
+   MFEM_VERIFY(direct_solver_ != nullptr,
+               "EvaluateDataJacobian requires Solve() with "
+               "direct_solver=true.");
+   MFEM_VERIFY(A_ != nullptr && rhs_data_jacobian_ != nullptr,
+               "The spline derivative operators are unavailable.");
+
+   const int local_point_count = evaluation_points.Size();
+   const mfem::real_t *local_point_data = evaluation_points.HostRead();
+   int local_points_are_valid = 1;
+   for (int i = 0; i < local_point_count; ++i)
+   {
+      const mfem::real_t x = local_point_data[i];
+      if (!std::isfinite(x) || x < global_x_left_ || x > global_x_right_)
+      {
+         local_points_are_valid = 0;
+      }
+   }
+
+   int every_point_is_valid = 0;
+   MPI_Allreduce(&local_points_are_valid, &every_point_is_valid, 1,
+                 MPI_INT, MPI_MIN, comm_);
+   MFEM_VERIFY(every_point_is_valid == 1,
+               "Every Jacobian evaluation point must be finite and lie in "
+               "the global spline interval.");
+
+   int number_of_ranks = 0;
+   MPI_Comm_size(comm_, &number_of_ranks);
+   std::vector<int> point_counts(
+      static_cast<std::size_t>(number_of_ranks), 0);
+   MPI_Allgather(&local_point_count, 1, MPI_INT,
+                 point_counts.data(), 1, MPI_INT, comm_);
+
+   std::vector<int> point_displacements(
+      static_cast<std::size_t>(number_of_ranks), 0);
+   int global_point_count = 0;
+   for (int r = 0; r < number_of_ranks; ++r)
+   {
+      const int count = point_counts[static_cast<std::size_t>(r)];
+      MFEM_VERIFY(count >= 0 &&
+                     count <= std::numeric_limits<int>::max() -
+                                 global_point_count,
+                  "The Jacobian evaluation-point batch exceeds "
+                  "MPI_Allgatherv limits.");
+      point_displacements[static_cast<std::size_t>(r)] = global_point_count;
+      global_point_count += count;
+   }
+   MFEM_VERIFY(global_point_count > 0,
+               "EvaluateDataJacobian requires at least one global "
+               "evaluation point.");
+
+   std::vector<mfem::real_t> global_points(
+      static_cast<std::size_t>(global_point_count));
+   MPI_Allgatherv(local_point_data, local_point_count,
+                  mfem::MPITypeMap<mfem::real_t>::mpi_type,
+                  global_points.data(), point_counts.data(),
+                  point_displacements.data(),
+                  mfem::MPITypeMap<mfem::real_t>::mpi_type, comm_);
+
+   const HYPRE_BigInt local_point_count_big =
+      static_cast<HYPRE_BigInt>(local_point_count);
+   mfem::Array<HYPRE_BigInt> point_offsets;
+   HYPRE_BigInt local_sizes[1] = {local_point_count_big};
+   mfem::Array<HYPRE_BigInt> *offset_arrays[1] = {&point_offsets};
+   mesh_->GenerateOffsets(1, local_sizes, offset_arrays);
+   MFEM_VERIFY(point_offsets.Last() ==
+                  static_cast<HYPRE_BigInt>(global_point_count),
+               "Inconsistent global Jacobian row count.");
+
+   // First assemble J^T. Each rank already owns the portion of every
+   // gradient associated with its input true DOFs, so this orientation does
+   // not require gathering a dense gradient onto the rank that owns a row.
+   const int local_data_size = input_space_->GetTrueVSize();
+   std::vector<std::vector<RowEntry>> transpose_rows(
+      static_cast<std::size_t>(local_data_size));
+   for (int global_row = 0; global_row < global_point_count; ++global_row)
+   {
+      const mfem::Vector gradient = EvaluateDataGradient(
+         global_points[static_cast<std::size_t>(global_row)]);
+      MFEM_VERIFY(gradient.Size() == local_data_size,
+                  "EvaluateDataGradient returned an incompatible local "
+                  "true-DOF vector.");
+      const mfem::real_t *gradient_data = gradient.HostRead();
+      for (int local_data_dof = 0;
+           local_data_dof < local_data_size; ++local_data_dof)
+      {
+         const mfem::real_t value = gradient_data[local_data_dof];
+         if (value != 0.0)
+         {
+            transpose_rows[static_cast<std::size_t>(local_data_dof)]
+               .push_back({static_cast<HYPRE_BigInt>(global_row), value});
+         }
+      }
+   }
+
+   std::vector<int> transpose_I;
+   std::vector<HYPRE_BigInt> transpose_J;
+   std::vector<mfem::real_t> transpose_data;
+   BuildCSR(transpose_rows, transpose_I, transpose_J, transpose_data);
+
+   mfem::HypreParMatrix jacobian_transpose(
+      comm_, local_data_size, input_space_->GlobalTrueVSize(),
+      static_cast<HYPRE_BigInt>(global_point_count), transpose_I.data(),
+      transpose_J.data(), transpose_data.data(),
+      input_space_->GetTrueDofOffsets(), point_offsets.GetData());
+   std::unique_ptr<mfem::HypreParMatrix> jacobian(
+      jacobian_transpose.Transpose());
+   MFEM_VERIFY(jacobian != nullptr &&
+                  jacobian->GetNumRows() == local_point_count,
+               "Failed to construct the distributed data Jacobian.");
+
+   // HypreParMatrix is not movable. Its copy constructor makes the returned
+   // matrix independent of both this temporary transpose and its partitions.
+   return mfem::HypreParMatrix(*jacobian);
+}
+
 
 mfem::Vector ParQuinticSmoothingSpline1D::Evaluate(const mfem::Vector &evaluation_pts, int d) const
 {

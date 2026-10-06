@@ -224,6 +224,23 @@ public:
     */
    mfem::Vector EvaluateDataGradient(mfem::real_t x) const;
 
+   /**
+    * Collectively assemble the Jacobian of the spline values at a
+    * distributed set of evaluation points with respect to the input data.
+    * Rank r supplies its locally owned rows in evaluation_points; the global
+    * row ordering is the concatenation of those vectors in MPI-rank order.
+    * The columns use the input finite element space's true-DOF partitioning:
+    *
+    *   J(i,j) = d S(evaluation_points_i) / d y_j.
+    *
+    * Thus each row is the distributed gradient returned by
+    * EvaluateDataGradient for the corresponding point. Every point must lie
+    * in the global spline interval. Solve() must previously have been called
+    * with direct_solver=true.
+    */
+   mfem::HypreParMatrix EvaluateDataJacobian(
+      const mfem::Vector &evaluation_points) const;
+
 private:
    struct Neighbor
    {
