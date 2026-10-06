@@ -489,28 +489,4 @@ public:
   virtual ~ReducedOptProblem();
 };
 
-
-
-#if 0
-// TODO: something better than needing to create the OptEqProblem and then this additional
-// wrapper around it
-class ReducedOptEqProblem : public OptEqProblem {
-protected:
-  std::unique_ptr<mfem::HypreParMatrix> Rc; // constraint restriction operator
-  std::unique_ptr<mfem::HypreParMatrix> R;  // dof restriction operator
-  std::unique_ptr<mfem::HypreParMatrix> J;  // reduced constraint Jacobian
-  std::unique_ptr<mfem::HypreParMatrix> H;  // 
-  OptEqProblem *problem;
-public:
-  ReducedOptEqProblem(OptProblem *problem, HYPRE_Int *constraintMask);
-  double E(const mfem::Vector &, int &);
-  void DdE(const mfem::Vector &, mfem::Vector &);
-  mfem::Operator *DddE(const mfem::Vector &);
-  void g(const mfem::Vector &, mfem::Vector &, int &);
-  mfem::Operator *Ddg(const mfem::Vector &);
-  virtual ~ReducedOptEqProblem();
-};
-#endif // ReducedOptEqProblem
-
-
 #endif // OPTPROBLEM_DEFS
