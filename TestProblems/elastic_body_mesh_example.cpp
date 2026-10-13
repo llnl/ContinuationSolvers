@@ -17,187 +17,83 @@ enum BoundaryAttribute
    LEFT = 4
 };
 
-/// Construct
+/// Construct the domain
 ///
-///   ([-1,1] x [1.5,2.5]) union
-///   {(x,y) : x^2 + (y-1.5)^2 <= 1 and y <= 1.5}.
+///   Omega = {(x,y) : -1 <= x <= 1, q(x) <= y <= 2.5},
 ///
-/// The semicircle is divided into radial layers and angular sectors.  Its
-/// diameter has 2*radial_layers segments.  The rectangle uses exactly the
-/// same diameter vertices, so y=1.5 is a conforming interior interface and
-/// not a mesh boundary.
-mfem::Mesh MakeElasticBodyMesh(int radial_layers,
-                               int angular_sectors,
-                               int rectangle_vertical_layers)
+/// where
+///
+///   q(x) = 1.5 - quadratic_depth * (1 - x^2).
+///
+/// Thus q(-1) = q(1) = 1.5 and q(0) = 1.5 - quadratic_depth.
+/// The logical rectangular grid is mapped vertically between q(x) and the
+/// horizontal top boundary.  Each mapped quadrilateral is divided into two
+/// triangles.
+mfem::Mesh MakeElasticBodyMesh(int horizontal_elements,
+                               int vertical_elements,
+                               mfem::real_t quadratic_depth)
 {
-   MFEM_VERIFY(radial_layers >= 1,
-               "At least one semicircle radial layer is required.");
-   MFEM_VERIFY(angular_sectors >= 2,
-               "At least two semicircle angular sectors are required.");
-   MFEM_VERIFY(rectangle_vertical_layers >= 1,
-               "At least one rectangle vertical layer is required.");
+   MFEM_VERIFY(horizontal_elements >= 2,
+               "At least two horizontal elements are required.");
+   MFEM_VERIFY(vertical_elements >= 1,
+               "At least one vertical element is required.");
+   MFEM_VERIFY(std::isfinite(quadratic_depth) && quadratic_depth > 0.0,
+               "The quadratic depth must be finite and positive.");
 
    constexpr int dimension = 2;
    constexpr int element_attribute = 1;
-   constexpr mfem::real_t center_y = 1.5;
-   constexpr mfem::real_t rectangle_height = 1.0;
-   const mfem::real_t pi = std::acos(mfem::real_t(-1.0));
+   constexpr mfem::real_t side_bottom_y = 1.5;
+   constexpr mfem::real_t top_y = 2.5;
 
-   const int rectangle_horizontal_layers = 2 * radial_layers;
-
-   // One center vertex; angular_sectors+1 vertices on every nonzero ring;
-   // and rectangle rows above the shared diameter.
    const int number_of_vertices =
-      1 + radial_layers * (angular_sectors + 1) +
-      rectangle_vertical_layers * (rectangle_horizontal_layers + 1);
-
-   // The innermost half-disk layer is a fan.  Every other half-disk cell
-   // and every rectangle cell is split into two triangles.
+      (horizontal_elements + 1) * (vertical_elements + 1);
    const int number_of_elements =
-      angular_sectors +
-      2 * (radial_layers - 1) * angular_sectors +
-      2 * rectangle_vertical_layers * rectangle_horizontal_layers;
-
+      2 * horizontal_elements * vertical_elements;
    const int number_of_boundary_elements =
-      angular_sectors + 2 * rectangle_vertical_layers +
-      rectangle_horizontal_layers;
+      2 * horizontal_elements + 2 * vertical_elements;
 
    mfem::Mesh mesh(dimension, number_of_vertices, number_of_elements,
                    number_of_boundary_elements, dimension);
 
-   const int center = mesh.AddVertex(0.0, center_y);
+   std::vector<std::vector<int>> vertex(
+      static_cast<std::size_t>(vertical_elements + 1),
+      std::vector<int>(static_cast<std::size_t>(horizontal_elements + 1),
+                       -1));
 
-   // ring[j][k] has radius j/radial_layers and angle
-   // pi + k*pi/angular_sectors.  k=0 and k=angular_sectors lie on the
-   // diameter; j=radial_layers is the candidate contact arc.
-   std::vector<std::vector<int>> ring(
-      static_cast<std::size_t>(radial_layers + 1));
-   ring[0].push_back(center);
-
-   for (int j = 1; j <= radial_layers; ++j)
+   for (int row = 0; row <= vertical_elements; ++row)
    {
-      const mfem::real_t radius =
-         static_cast<mfem::real_t>(j) / radial_layers;
-      ring[static_cast<std::size_t>(j)].resize(
-         static_cast<std::size_t>(angular_sectors + 1));
-
-      for (int k = 0; k <= angular_sectors; ++k)
-      {
-         mfem::real_t x = 0.0;
-         mfem::real_t y = center_y;
-         if (k == 0)
-         {
-            x = -radius;
-         }
-         else if (k == angular_sectors)
-         {
-            x = radius;
-         }
-         else
-         {
-            const mfem::real_t angle =
-               pi + pi * static_cast<mfem::real_t>(k) / angular_sectors;
-            x = radius * std::cos(angle);
-            y = center_y + radius * std::sin(angle);
-         }
-
-         ring[static_cast<std::size_t>(j)][static_cast<std::size_t>(k)] =
-            mesh.AddVertex(x, y);
-      }
-   }
-
-   // Triangular fan next to the center.
-   for (int k = 0; k < angular_sectors; ++k)
-   {
-      mesh.AddTriangle(center,
-                       ring[1][static_cast<std::size_t>(k)],
-                       ring[1][static_cast<std::size_t>(k + 1)],
-                       element_attribute);
-   }
-
-   // Triangulate the cells between successive half-rings.
-   for (int j = 1; j < radial_layers; ++j)
-   {
-      for (int k = 0; k < angular_sectors; ++k)
-      {
-         const int inner_left =
-            ring[static_cast<std::size_t>(j)][static_cast<std::size_t>(k)];
-         const int outer_left =
-            ring[static_cast<std::size_t>(j + 1)]
-                [static_cast<std::size_t>(k)];
-         const int outer_right =
-            ring[static_cast<std::size_t>(j + 1)]
-                [static_cast<std::size_t>(k + 1)];
-         const int inner_right =
-            ring[static_cast<std::size_t>(j)]
-                [static_cast<std::size_t>(k + 1)];
-
-         mesh.AddTriangle(inner_left, outer_left, outer_right,
-                          element_attribute);
-         mesh.AddTriangle(inner_left, outer_right, inner_right,
-                          element_attribute);
-      }
-   }
-
-   // rectangle[row][column], with row zero equal to the already-created
-   // diameter vertices.  Columns run from x=-1 to x=1.
-   std::vector<std::vector<int>> rectangle(
-      static_cast<std::size_t>(rectangle_vertical_layers + 1),
-      std::vector<int>(
-         static_cast<std::size_t>(rectangle_horizontal_layers + 1), -1));
-
-   for (int column = 0; column <= rectangle_horizontal_layers; ++column)
-   {
-      if (column < radial_layers)
-      {
-         const int j = radial_layers - column;
-         rectangle[0][static_cast<std::size_t>(column)] =
-            ring[static_cast<std::size_t>(j)][0];
-      }
-      else if (column == radial_layers)
-      {
-         rectangle[0][static_cast<std::size_t>(column)] = center;
-      }
-      else
-      {
-         const int j = column - radial_layers;
-         rectangle[0][static_cast<std::size_t>(column)] =
-            ring[static_cast<std::size_t>(j)]
-                [static_cast<std::size_t>(angular_sectors)];
-      }
-   }
-
-   for (int row = 1; row <= rectangle_vertical_layers; ++row)
-   {
-      const mfem::real_t y =
-         center_y + rectangle_height * static_cast<mfem::real_t>(row) /
-                       rectangle_vertical_layers;
-      for (int column = 0; column <= rectangle_horizontal_layers; ++column)
+      const mfem::real_t eta =
+         static_cast<mfem::real_t>(row) / vertical_elements;
+      for (int column = 0; column <= horizontal_elements; ++column)
       {
          const mfem::real_t x =
             -1.0 + 2.0 * static_cast<mfem::real_t>(column) /
-                      rectangle_horizontal_layers;
-         rectangle[static_cast<std::size_t>(row)]
-                  [static_cast<std::size_t>(column)] = mesh.AddVertex(x, y);
+                      horizontal_elements;
+         const mfem::real_t bottom_y =
+            side_bottom_y - quadratic_depth * (1.0 - x * x);
+         const mfem::real_t y = bottom_y + eta * (top_y - bottom_y);
+
+         vertex[static_cast<std::size_t>(row)]
+               [static_cast<std::size_t>(column)] = mesh.AddVertex(x, y);
       }
    }
 
-   for (int row = 0; row < rectangle_vertical_layers; ++row)
+   for (int row = 0; row < vertical_elements; ++row)
    {
-      for (int column = 0; column < rectangle_horizontal_layers; ++column)
+      for (int column = 0; column < horizontal_elements; ++column)
       {
          const int lower_left =
-            rectangle[static_cast<std::size_t>(row)]
-                     [static_cast<std::size_t>(column)];
+            vertex[static_cast<std::size_t>(row)]
+                  [static_cast<std::size_t>(column)];
          const int lower_right =
-            rectangle[static_cast<std::size_t>(row)]
-                     [static_cast<std::size_t>(column + 1)];
+            vertex[static_cast<std::size_t>(row)]
+                  [static_cast<std::size_t>(column + 1)];
          const int upper_right =
-            rectangle[static_cast<std::size_t>(row + 1)]
-                     [static_cast<std::size_t>(column + 1)];
+            vertex[static_cast<std::size_t>(row + 1)]
+                  [static_cast<std::size_t>(column + 1)];
          const int upper_left =
-            rectangle[static_cast<std::size_t>(row + 1)]
-                     [static_cast<std::size_t>(column)];
+            vertex[static_cast<std::size_t>(row + 1)]
+                  [static_cast<std::size_t>(column)];
 
          mesh.AddTriangle(lower_left, lower_right, upper_right,
                           element_attribute);
@@ -206,43 +102,41 @@ mfem::Mesh MakeElasticBodyMesh(int radial_layers,
       }
    }
 
-   // Boundary orientation is counterclockwise around the body.  The
-   // diameter y=1.5 is intentionally omitted because it is interior.
-   for (int k = 0; k < angular_sectors; ++k)
+   // Traverse the boundary counterclockwise: contact from left to right,
+   // right side upward, top from right to left, and left side downward.
+   for (int column = 0; column < horizontal_elements; ++column)
    {
       mesh.AddBdrSegment(
-         ring[static_cast<std::size_t>(radial_layers)]
-             [static_cast<std::size_t>(k)],
-         ring[static_cast<std::size_t>(radial_layers)]
-             [static_cast<std::size_t>(k + 1)],
+         vertex[0][static_cast<std::size_t>(column)],
+         vertex[0][static_cast<std::size_t>(column + 1)],
          CONTACT);
    }
 
-   for (int row = 0; row < rectangle_vertical_layers; ++row)
+   for (int row = 0; row < vertical_elements; ++row)
    {
       mesh.AddBdrSegment(
-         rectangle[static_cast<std::size_t>(row)]
-                  [static_cast<std::size_t>(rectangle_horizontal_layers)],
-         rectangle[static_cast<std::size_t>(row + 1)]
-                  [static_cast<std::size_t>(rectangle_horizontal_layers)],
+         vertex[static_cast<std::size_t>(row)]
+               [static_cast<std::size_t>(horizontal_elements)],
+         vertex[static_cast<std::size_t>(row + 1)]
+               [static_cast<std::size_t>(horizontal_elements)],
          RIGHT);
    }
 
-   for (int column = rectangle_horizontal_layers; column > 0; --column)
+   for (int column = horizontal_elements; column > 0; --column)
    {
       mesh.AddBdrSegment(
-         rectangle[static_cast<std::size_t>(rectangle_vertical_layers)]
-                  [static_cast<std::size_t>(column)],
-         rectangle[static_cast<std::size_t>(rectangle_vertical_layers)]
-                  [static_cast<std::size_t>(column - 1)],
+         vertex[static_cast<std::size_t>(vertical_elements)]
+               [static_cast<std::size_t>(column)],
+         vertex[static_cast<std::size_t>(vertical_elements)]
+               [static_cast<std::size_t>(column - 1)],
          TOP);
    }
 
-   for (int row = rectangle_vertical_layers; row > 0; --row)
+   for (int row = vertical_elements; row > 0; --row)
    {
       mesh.AddBdrSegment(
-         rectangle[static_cast<std::size_t>(row)][0],
-         rectangle[static_cast<std::size_t>(row - 1)][0],
+         vertex[static_cast<std::size_t>(row)][0],
+         vertex[static_cast<std::size_t>(row - 1)][0],
          LEFT);
    }
 
@@ -261,19 +155,20 @@ int main(int argc, char *argv[])
    int rank = 0;
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-   int radial_layers = 8;
-   int angular_sectors = 32;
-   int rectangle_vertical_layers = 8;
+   int horizontal_elements = 32;
+   int vertical_elements = 16;
+   mfem::real_t quadratic_depth = 1.0;
    const char *serial_mesh_file = "elastic_body.mesh";
    const char *paraview_prefix = "ParaView";
 
    mfem::OptionsParser args(argc, argv);
-   args.AddOption(&radial_layers, "-nr", "--radial-layers",
-                  "Number of radial layers in the lower semicircle.");
-   args.AddOption(&angular_sectors, "-na", "--angular-sectors",
-                  "Number of angular sectors along the contact arc.");
-   args.AddOption(&rectangle_vertical_layers, "-ny", "--vertical-layers",
-                  "Number of vertical layers in the rectangle.");
+   args.AddOption(&horizontal_elements, "-nx", "--horizontal-elements",
+                  "Number of elements along the quadratic contact boundary.");
+   args.AddOption(&vertical_elements, "-ny", "--vertical-elements",
+                  "Number of mapped elements between the contact and top "
+                  "boundaries.");
+   args.AddOption(&quadratic_depth, "-d", "--quadratic-depth",
+                  "Depth 1.5-q(0) of the convex quadratic boundary.");
    args.AddOption(&serial_mesh_file, "-m", "--mesh-file",
                   "Output MFEM mesh file.");
    args.AddOption(&paraview_prefix, "-p", "--paraview-prefix",
@@ -287,12 +182,12 @@ int main(int argc, char *argv[])
       return 1;
    }
 
-   if (radial_layers < 1 || angular_sectors < 2 ||
-       rectangle_vertical_layers < 1)
+   if (horizontal_elements < 2 || vertical_elements < 1 ||
+       !std::isfinite(quadratic_depth) || quadratic_depth <= 0.0)
    {
       if (rank == 0)
       {
-         std::cerr << "Expected nr >= 1, na >= 2, and ny >= 1.\n";
+         std::cerr << "Expected nx >= 2, ny >= 1, and depth > 0.\n";
       }
       MPI_Finalize();
       return 2;
@@ -301,7 +196,7 @@ int main(int argc, char *argv[])
    if (rank == 0) { args.PrintOptions(std::cout); }
 
    mfem::Mesh serial_mesh = MakeElasticBodyMesh(
-      radial_layers, angular_sectors, rectangle_vertical_layers);
+      horizontal_elements, vertical_elements, quadratic_depth);
 
    if (rank == 0)
    {
