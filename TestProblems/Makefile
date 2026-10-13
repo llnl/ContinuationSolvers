@@ -1,6 +1,6 @@
 # Use the MFEM build directory
-MFEM_DIR ?= /usr/workspace/tuckerh/mfem
-MFEM_BUILD_DIR ?= $(MFEM_DIR)/buildCPARDISO2
+MFEM_DIR ?= /home/tucker/software/glvis_mfem/mfem
+MFEM_BUILD_DIR ?= $(MFEM_DIR)/parallel_mumps_build
 
 
 SRC=../continuationsolvers
@@ -84,6 +84,12 @@ ObstacleDesignProblem: ObstacleDesignProblem.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE
 
 TestSphericalObstacleProblem: TestSphericalObstacleProblem.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
 	$(MFEM_CXX) $(MFEM_FLAGS) TestSphericalObstacleProblem.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+elastic_body_mesh_example: elastic_body_mesh_example.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) elastic_body_mesh_example.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+elastic_body_elasticity_example: elastic_body_elasticity_example.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) elastic_body_elasticity_example.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
 
 LibTestProblem: LibTestProblem.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
 	cd $(TESTLIB_DIR); make diablolib.a;
