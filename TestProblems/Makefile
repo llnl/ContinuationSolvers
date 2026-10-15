@@ -27,6 +27,7 @@ MFEM_FLAGS1=$(MFEM_FLAGS)
 PROB_DIR=$(SRC)/problems
 SOLVER_DIR=$(SRC)/solvers
 SPLINE_DIR=Spline
+SPLINE_DRIVER_DIR=SplineDrivers
 TESTLIB_DIR=lib
 
 FRAMEWORK_SRC_FILES = $(SRC)/utilities.cpp $(wildcard $(PROB_DIR)/*.cpp) $(wildcard $(SOLVER_DIR)/*.cpp)
@@ -46,6 +47,9 @@ $(SOLVER_DIR)/%.o: $(SOLVER_DIR)/%.cpp $(wildcard $(SOLVER_DIR)/%.hpp) $(CONFIG_
 	$(MFEM_CXX) $(MFEM_FLAGS) -c -o $@ $< 
 
 $(SPLINE_DIR)/%.o: $(SPLINE_DIR)/%.cpp $(wildcard $(SPLINE_DIR)/*.hpp) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c -o $@ $<
+
+$(SPLINE_DRIVER_DIR)/%.o: $(SPLINE_DRIVER_DIR)/%.cpp $(wildcard $(SPLINE_DRIVER_DIR)/*.hpp) $(wildcard $(SPLINE_DIR)/*.hpp) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c -o $@ $<
 
 
@@ -89,14 +93,41 @@ ObstacleDesignProblem: ObstacleDesignProblem.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE
 TestSphericalObstacleProblem: TestSphericalObstacleProblem.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
 	$(MFEM_CXX) $(MFEM_FLAGS) TestSphericalObstacleProblem.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
 
-elastic_body_mesh_example: elastic_body_mesh_example.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
-	$(MFEM_CXX) $(MFEM_FLAGS) elastic_body_mesh_example.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+#elastic_body_mesh_example: elastic_body_mesh_example.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+#	$(MFEM_CXX) $(MFEM_FLAGS) elastic_body_mesh_example.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+#
+#elastic_body_elasticity_example: elastic_body_elasticity_example.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+#	$(MFEM_CXX) $(MFEM_FLAGS) elastic_body_elasticity_example.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+#
+#spline_contact_example: spline_contact_example.o spline_contact_problem.o Spline/quintic_smoothing_spline_1d.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+#	$(MFEM_CXX) $(MFEM_FLAGS) spline_contact_example.o spline_contact_problem.o Spline/quintic_smoothing_spline_1d.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
 
-elastic_body_elasticity_example: elastic_body_elasticity_example.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
-	$(MFEM_CXX) $(MFEM_FLAGS) elastic_body_elasticity_example.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+elastic_body_mesh_example: \
+	$(SPLINE_DRIVER_DIR)/elastic_body_mesh_example.o \
+	$(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) \
+		$(SPLINE_DRIVER_DIR)/elastic_body_mesh_example.o \
+		$(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
 
-spline_contact_example: spline_contact_example.o spline_contact_problem.o Spline/quintic_smoothing_spline_1d.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
-	$(MFEM_CXX) $(MFEM_FLAGS) spline_contact_example.o spline_contact_problem.o Spline/quintic_smoothing_spline_1d.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+elastic_body_elasticity_example: \
+	$(SPLINE_DRIVER_DIR)/elastic_body_elasticity_example.o \
+	$(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) \
+		$(SPLINE_DRIVER_DIR)/elastic_body_elasticity_example.o \
+		$(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+spline_contact_example: \
+	$(SPLINE_DRIVER_DIR)/spline_contact_example.o \
+	$(SPLINE_DRIVER_DIR)/spline_contact_problem.o \
+	$(SPLINE_DIR)/quintic_smoothing_spline_1d.o \
+	$(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) \
+		$(SPLINE_DRIVER_DIR)/spline_contact_example.o \
+		$(SPLINE_DRIVER_DIR)/spline_contact_problem.o \
+		$(SPLINE_DIR)/quintic_smoothing_spline_1d.o \
+		$(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+
 
 LibTestProblem: LibTestProblem.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
 	cd $(TESTLIB_DIR); make diablolib.a;
@@ -109,4 +140,15 @@ $(MFEM_LIB_FILE):
 
 .PHONY: clean
 clean:
-	rm -f *.o Spline/*.o $(PROB_DIR)/*.o $(SOLVER_DIR)/*.o $(TESTLIB_DIR)/*.o $(TESTLIB_DIR)/*.a TestProblem1 TestProblem1a TestProblem1b TestProblem1c TestProblem2 TestProblem3 TestProblem4 TestProblem4a TestProblem5 LibTestProblem TestObstacleProblem TestSphericalObstacleProblem ObstacleDesignProblem elastic_body_mesh_example elastic_body_elasticity_example spline_contact_example
+	rm -f *.o \
+	      $(SPLINE_DIR)/*.o \
+	      $(SPLINE_DRIVER_DIR)/*.o \
+	      $(PROB_DIR)/*.o \
+	      $(SOLVER_DIR)/*.o \
+	      $(TESTLIB_DIR)/*.o \
+	      $(TESTLIB_DIR)/*.a \
+	      TestProblem1 TestProblem1a TestProblem1b TestProblem1c \
+	      TestProblem2 TestProblem3 TestProblem4 TestProblem4a TestProblem5 \
+	      LibTestProblem TestObstacleProblem TestSphericalObstacleProblem \
+	      ObstacleDesignProblem elastic_body_mesh_example \
+	      elastic_body_elasticity_example spline_contact_example
