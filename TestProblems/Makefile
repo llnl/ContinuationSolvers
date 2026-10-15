@@ -1,78 +1,112 @@
-# MFEM configuration
-MFEM_DIR       ?= /home/tucker/software/glvis_mfem/mfem
+# Use the MFEM build directory
+MFEM_DIR ?= /home/tucker/software/glvis_mfem/mfem
 MFEM_BUILD_DIR ?= $(MFEM_DIR)/parallel_mumps_build
 
-CONFIG_MK    := $(MFEM_BUILD_DIR)/config/config.mk
-MFEM_LIB_FILE := $(MFEM_BUILD_DIR)/libmfem.a
 
+SRC=../continuationsolvers
+
+
+
+CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
+
+MFEM_LIB_FILE = $(MFEM_BUILD_DIR)/libmfem.a
+#MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-MFEM_CXX ?= mpicxx
+MFEM_CXX=mpicxx
+MFEM_FLAGS1=$(MFEM_FLAGS)
 
-# ContinuationSolvers sources
-SRC         := ../continuationsolvers
-PROB_DIR    := $(SRC)/problems
-SOLVER_DIR  := $(SRC)/solvers
-TESTLIB_DIR := lib
 
-FRAMEWORK_SRC_FILES := \
-	$(SRC)/utilities.cpp \
-	$(wildcard $(PROB_DIR)/*.cpp) \
-	$(wildcard $(SOLVER_DIR)/*.cpp)
 
-FRAMEWORK_OBJS := $(FRAMEWORK_SRC_FILES:.cpp=.o)
+# Remove built-in rule
+%: %.cpp
+%: %.c
+%.o: %.cpp
 
-PROGRAMS := \
-	TestProblem1 \
-	TestProblem1a \
-	TestProblem1b \
-	TestProblem1c \
-	TestProblem1d \
-	TestProblem2 \
-	TestProblem3 \
-	TestProblem4 \
-	TestProblem4a \
-	TestProblem5 \
-	TestObstacleProblem \
-	TestSphericalObstacleProblem \
-	ObstacleDesignProblem \
-	elastic_body_mesh_example \
-	elastic_body_elasticity_example
 
-TESTLIB := $(TESTLIB_DIR)/diablolib.a
+PROB_DIR=$(SRC)/problems
+SOLVER_DIR=$(SRC)/solvers
+SPLINE_DIR=Spline
+TESTLIB_DIR=lib
 
-PROGRAM_OBJS := $(PROGRAMS:%=%.o)
-ALL_OBJS     := $(FRAMEWORK_OBJS) $(PROGRAM_OBJS) LibTestProblem.o
-DEP_FILES    := $(ALL_OBJS:.o=.d)
+FRAMEWORK_SRC_FILES = $(SRC)/utilities.cpp $(wildcard $(PROB_DIR)/*.cpp) $(wildcard $(SOLVER_DIR)/*.cpp)
+FRAMEWORK_OBJS = $(FRAMEWORK_SRC_FILES:.cpp=.o)
 
-.PHONY: all clean
 
-all: $(PROGRAMS) LibTestProblem
-
-# Compile local and framework sources with automatic header dependencies.
 %.o: %.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -MMD -MP -c -o $@ $<
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $<
 
-# All ordinary test programs use the same link rule.
-$(PROGRAMS): %: %.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< $(FRAMEWORK_OBJS) \
-		-o $@ $(MFEM_LIBS)
+$(SRC)/%.o: $(SRC)/%.cpp $(wildcard $(SRC)/%.hpp) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c -o $@ $< 
 
-# Special external test library.
-$(TESTLIB): $(TESTLIB_DIR)/diablo.c $(TESTLIB_DIR)/diablo.h
-	$(MAKE) -C $(TESTLIB_DIR) diablolib.a
+$(PROB_DIR)/%.o: $(PROB_DIR)/%.cpp $(wildcard $(PROB_DIR)/%.hpp) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c -o $@ $< 
 
-LibTestProblem: LibTestProblem.o $(FRAMEWORK_OBJS) \
-                $(MFEM_LIB_FILE) $(TESTLIB)
-	$(MFEM_CXX) $(MFEM_FLAGS) LibTestProblem.o $(FRAMEWORK_OBJS) \
-		-o $@ $(TESTLIB) $(MFEM_LIBS)
+$(SOLVER_DIR)/%.o: $(SOLVER_DIR)/%.cpp $(wildcard $(SOLVER_DIR)/%.hpp) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c -o $@ $< 
 
-# Give a clear error if MFEM has not been built.
+$(SPLINE_DIR)/%.o: $(SPLINE_DIR)/%.cpp $(wildcard $(SPLINE_DIR)/*.hpp) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c -o $@ $<
+
+
+TestProblem1: TestProblem1.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) TestProblem1.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+TestProblem1a: TestProblem1a.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) TestProblem1a.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+TestProblem1b: TestProblem1b.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) TestProblem1b.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+TestProblem1c: TestProblem1c.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) TestProblem1c.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+TestProblem1d: TestProblem1d.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) TestProblem1d.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+
+TestProblem2: TestProblem2.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) TestProblem2.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+TestProblem3: TestProblem3.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) TestProblem3.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+TestProblem4: TestProblem4.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) TestProblem4.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+TestProblem4a: TestProblem4a.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) TestProblem4a.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+TestProblem5: TestProblem5.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) TestProblem5.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+TestObstacleProblem: TestObstacleProblem.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) TestObstacleProblem.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+ObstacleDesignProblem: ObstacleDesignProblem.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) ObstacleDesignProblem.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+TestSphericalObstacleProblem: TestSphericalObstacleProblem.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) TestSphericalObstacleProblem.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+elastic_body_mesh_example: elastic_body_mesh_example.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) elastic_body_mesh_example.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+elastic_body_elasticity_example: elastic_body_elasticity_example.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) elastic_body_elasticity_example.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+spline_contact_example: spline_contact_example.o spline_contact_problem.o Spline/quintic_smoothing_spline_1d.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) spline_contact_example.o spline_contact_problem.o Spline/quintic_smoothing_spline_1d.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
+LibTestProblem: LibTestProblem.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	cd $(TESTLIB_DIR); make diablolib.a;
+	$(MFEM_CXX) $(MFEM_FLAGS) LibTestProblem.o $(FRAMEWORK_OBJS) -o $@ lib/diablolib.a $(MFEM_LIBS)
+
+# Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-clean:
-	$(RM) $(ALL_OBJS) $(DEP_FILES) $(PROGRAMS) LibTestProblem
-	$(MAKE) -C $(TESTLIB_DIR) clean
 
--include $(DEP_FILES)
+.PHONY: clean
+clean:
+	rm -f *.o Spline/*.o $(PROB_DIR)/*.o $(SOLVER_DIR)/*.o $(TEST_LIB_DIR)/*.o $(TEST_LIB_DIR)/*.a TestProblem1 TestProblem1a TestProblem1b TestProblem1c TestProblem2 TestProblem3 TestProblem4 TestProblem4a TestProblem5 LibTestProblem TestObstacleProblem TestSphericalObstacleProblem ObstacleDesignProblem elastic_body_mesh_example elastic_body_elasticity_example spline_contact_example

@@ -215,7 +215,7 @@ int main(int argc, char *argv[])
    mfem::HyprePCG solver(system_matrix);
    solver.SetTol(1.0e-12);
    solver.SetMaxIter(500);
-   solver.SetPrintLevel(rank == 0 ? 2 : 0);
+   solver.SetPrintLevel(2);
    solver.SetPreconditioner(preconditioner);
    solver.Mult(right_hand_side, solution);
 

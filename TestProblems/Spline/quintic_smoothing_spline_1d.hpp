@@ -69,26 +69,26 @@ struct QuinticSmoothingSolveResult
  * Construction and Solve() are collective on the ParMesh communicator.
  * The input ParGridFunction and its mesh/space must outlive this object.
  */
-class ParQuinticSmoothingSpline1D
+class QuinticSmoothingSpline1D
 {
 public:
    static constexpr int order = 5;
    static constexpr int coefficients_per_interval = order + 1;
 
-   explicit ParQuinticSmoothingSpline1D(
+   explicit QuinticSmoothingSpline1D(
       const mfem::ParGridFunction &input,
       const QuinticSmoothingOptions &smoothing_options =
          QuinticSmoothingOptions());
 
-   ParQuinticSmoothingSpline1D(
-      const ParQuinticSmoothingSpline1D &) = delete;
-   ParQuinticSmoothingSpline1D &operator=(
-      const ParQuinticSmoothingSpline1D &) = delete;
-   ParQuinticSmoothingSpline1D(
-      ParQuinticSmoothingSpline1D &&) = delete;
-   ParQuinticSmoothingSpline1D &operator=(
-      ParQuinticSmoothingSpline1D &&) = delete;
-   ~ParQuinticSmoothingSpline1D() = default;
+   QuinticSmoothingSpline1D(
+      const QuinticSmoothingSpline1D &) = delete;
+   QuinticSmoothingSpline1D &operator=(
+      const QuinticSmoothingSpline1D &) = delete;
+   QuinticSmoothingSpline1D(
+      QuinticSmoothingSpline1D &&) = delete;
+   QuinticSmoothingSpline1D &operator=(
+      QuinticSmoothingSpline1D &&) = delete;
+   ~QuinticSmoothingSpline1D() = default;
 
    /// Reassemble the smoothing KKT matrix and reload the input data.
    void Assemble();

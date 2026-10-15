@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
       mfem::ParFiniteElementSpace fes(&parallel_mesh, &fec);
       mfem::ParGridFunction u(&fes);
 
-      const mfem::real_t pi = std::acos(-1.0);
+      const mfem::real_t pi = M_PI;
       const auto true_function =
          [pi](mfem::real_t x) { return std::sin(2.1 * pi * x); };
       mfem::FunctionCoefficient function_coefficient(
@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
 
       spline::QuinticSmoothingOptions smoothing_options;
       smoothing_options.data_fidelity = data_fidelity;
-      spline::ParQuinticSmoothingSpline1D spline(
+      spline::QuinticSmoothingSpline1D spline(
          u, smoothing_options);
       const spline::QuinticSmoothingSolveResult solve = spline.Solve();
 

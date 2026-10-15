@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
          mfem::ParGridFunction nodal_data(&fes);
          nodal_data.ProjectCoefficient(function_coefficient);
 
-         spline::ParQuinticSmoothingSpline1D smoothing_spline(
+         spline::QuinticSmoothingSpline1D smoothing_spline(
             nodal_data, smoothing_options);
          const spline::QuinticSmoothingSolveResult solve =
             smoothing_spline.Solve();

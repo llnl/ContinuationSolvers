@@ -34,7 +34,7 @@ struct VertexIncidence
 
 } // namespace
 
-ParQuinticSmoothingSpline1D::ParQuinticSmoothingSpline1D(
+QuinticSmoothingSpline1D::QuinticSmoothingSpline1D(
    const mfem::ParGridFunction &input,
    const QuinticSmoothingOptions &smoothing_options)
    : input_(&input),
@@ -61,7 +61,7 @@ ParQuinticSmoothingSpline1D::ParQuinticSmoothingSpline1D(
    Assemble();
 }
 
-bool ParQuinticSmoothingSpline1D::Near(mfem::real_t a, mfem::real_t b) const
+bool QuinticSmoothingSpline1D::Near(mfem::real_t a, mfem::real_t b) const
 {
    const mfem::real_t scale =
       std::max<mfem::real_t>({1.0, std::abs(a), std::abs(b)});
@@ -71,7 +71,7 @@ bool ParQuinticSmoothingSpline1D::Near(mfem::real_t a, mfem::real_t b) const
           std::max(coordinate_tolerance_, automatic_tolerance);
 }
 
-mfem::real_t ParQuinticSmoothingSpline1D::IntegerPower(mfem::real_t x, int exponent)
+mfem::real_t QuinticSmoothingSpline1D::IntegerPower(mfem::real_t x, int exponent)
 {
    MFEM_ASSERT(exponent >= 0, "A nonnegative exponent is required.");
    mfem::real_t result = 1.0;
@@ -79,7 +79,7 @@ mfem::real_t ParQuinticSmoothingSpline1D::IntegerPower(mfem::real_t x, int expon
    return result;
 }
 
-mfem::real_t ParQuinticSmoothingSpline1D::FallingFactorial(int j, int derivative)
+mfem::real_t QuinticSmoothingSpline1D::FallingFactorial(int j, int derivative)
 {
    MFEM_ASSERT(j >= derivative && derivative >= 0,
                "Invalid monomial derivative.");
@@ -88,7 +88,7 @@ mfem::real_t ParQuinticSmoothingSpline1D::FallingFactorial(int j, int derivative
    return result;
 }
 
-HYPRE_BigInt ParQuinticSmoothingSpline1D::CoefficientColumn(
+HYPRE_BigInt QuinticSmoothingSpline1D::CoefficientColumn(
    HYPRE_BigInt global_interval, int j)
 {
    MFEM_ASSERT(global_interval >= 0, "Invalid global interval number.");
@@ -97,11 +97,11 @@ HYPRE_BigInt ParQuinticSmoothingSpline1D::CoefficientColumn(
    return coefficients_per_interval * global_interval + j;
 }
 
-void ParQuinticSmoothingSpline1D::BuildIntervals()
+void QuinticSmoothingSpline1D::BuildIntervals()
 {
    const int local_ne = mesh_->GetNE();
    MFEM_VERIFY(local_ne > 0,
-               "ParQuinticSmoothingSpline1D currently requires every MPI rank to own "
+               "QuinticSmoothingSpline1D currently requires every MPI rank to own "
                "at least one interval.");
 
    global_number_of_intervals_ =
@@ -248,7 +248,7 @@ void ParQuinticSmoothingSpline1D::BuildIntervals()
                "The mesh must describe one connected, non-periodic interval.");
 }
 
-void ParQuinticSmoothingSpline1D::CompleteOffRankNeighbors()
+void QuinticSmoothingSpline1D::CompleteOffRankNeighbors()
 {
    std::vector<SharedIntervalRecord> send_records;
    for (const Interval &interval : intervals_)
@@ -385,7 +385,7 @@ void ParQuinticSmoothingSpline1D::CompleteOffRankNeighbors()
 }
 
 
-void ParQuinticSmoothingSpline1D::AddEntry(std::vector<RowEntry> &row,
+void QuinticSmoothingSpline1D::AddEntry(std::vector<RowEntry> &row,
                                   HYPRE_BigInt global_interval,
                                   int coefficient,
                                   mfem::real_t value) const
@@ -395,7 +395,7 @@ void ParQuinticSmoothingSpline1D::AddEntry(std::vector<RowEntry> &row,
       {CoefficientColumn(global_interval, coefficient), value});
 }
 
-void ParQuinticSmoothingSpline1D::AddDerivative(
+void QuinticSmoothingSpline1D::AddDerivative(
    std::vector<RowEntry> &row,
    HYPRE_BigInt global_interval,
    mfem::real_t x_right,
@@ -428,7 +428,7 @@ void ParQuinticSmoothingSpline1D::AddDerivative(
    }
 }
 
-void ParQuinticSmoothingSpline1D::BuildCSR(
+void QuinticSmoothingSpline1D::BuildCSR(
    std::vector<std::vector<RowEntry>> &rows,
    std::vector<int> &I,
    std::vector<HYPRE_BigInt> &J,
@@ -475,7 +475,7 @@ void ParQuinticSmoothingSpline1D::BuildCSR(
 }
 
 
-void ParQuinticSmoothingSpline1D::Assemble()
+void QuinticSmoothingSpline1D::Assemble()
 {
    direct_solver_.reset();
    coefficients_.reset();
@@ -505,7 +505,7 @@ void ParQuinticSmoothingSpline1D::Assemble()
    SetDataValues(true_values);
 }
 
-void ParQuinticSmoothingSpline1D::AssembleSmoothingSystem()
+void QuinticSmoothingSpline1D::AssembleSmoothingSystem()
 {
    const int local_ne = static_cast<int>(intervals_.size());
    const int local_coefficient_size =
@@ -714,7 +714,7 @@ void ParQuinticSmoothingSpline1D::AssembleSmoothingSystem()
    std::unique_ptr<mfem::HypreParMatrix> constraints_transpose(
       constraints->Transpose());
 
-   mfem::Array2D<mfem::HypreParMatrix *> system_blocks(2, 2);
+   mfem::Array2D<const mfem::HypreParMatrix *> system_blocks(2, 2);
    system_blocks(0, 0) = objective.get();
    system_blocks(0, 1) = constraints_transpose.get();
    system_blocks(1, 0) = constraints.get();
@@ -731,7 +731,7 @@ void ParQuinticSmoothingSpline1D::AssembleSmoothingSystem()
                "Inconsistent local smoothing block ordering.");
 }
 
-void ParQuinticSmoothingSpline1D::SetDataValues(
+void QuinticSmoothingSpline1D::SetDataValues(
    const mfem::Vector &local_true_y)
 {
    MFEM_VERIFY(rhs_data_jacobian_ != nullptr && rhs_ != nullptr &&
@@ -746,7 +746,7 @@ void ParQuinticSmoothingSpline1D::SetDataValues(
    solved_ = false;
 }
 
-void ParQuinticSmoothingSpline1D::RefreshDataValues()
+void QuinticSmoothingSpline1D::RefreshDataValues()
 {
    mfem::Vector true_values(input_space_->GetTrueVSize());
    input_->GetTrueDofs(true_values);
@@ -754,7 +754,7 @@ void ParQuinticSmoothingSpline1D::RefreshDataValues()
 }
 
 
-QuinticSmoothingSolveResult ParQuinticSmoothingSpline1D::Solve(
+QuinticSmoothingSolveResult QuinticSmoothingSpline1D::Solve(
    const QuinticSmoothingSolveOptions &options)
 {
    MFEM_VERIFY(A_ && rhs_ && system_solution_ && coefficients_,
@@ -828,35 +828,35 @@ QuinticSmoothingSolveResult ParQuinticSmoothingSpline1D::Solve(
    return result;
 }
 
-const mfem::HypreParMatrix &ParQuinticSmoothingSpline1D::SystemMatrix() const
+const mfem::HypreParMatrix &QuinticSmoothingSpline1D::SystemMatrix() const
 {
    MFEM_VERIFY(A_ != nullptr, "The spline matrix has not been assembled.");
    return *A_;
 }
 
 const mfem::HypreParMatrix &
-ParQuinticSmoothingSpline1D::RightHandSideDataJacobian() const
+QuinticSmoothingSpline1D::RightHandSideDataJacobian() const
 {
    MFEM_VERIFY(rhs_data_jacobian_ != nullptr,
                "The right-hand-side data Jacobian has not been assembled.");
    return *rhs_data_jacobian_;
 }
 
-const mfem::HypreParVector &ParQuinticSmoothingSpline1D::RightHandSide() const
+const mfem::HypreParVector &QuinticSmoothingSpline1D::RightHandSide() const
 {
    MFEM_VERIFY(rhs_ != nullptr, "The spline right-hand side is unavailable.");
    return *rhs_;
 }
 
-const mfem::HypreParVector &ParQuinticSmoothingSpline1D::CoefficientVector() const
+const mfem::HypreParVector &QuinticSmoothingSpline1D::CoefficientVector() const
 {
    MFEM_VERIFY(coefficients_ != nullptr,
                "The spline coefficient vector is unavailable.");
    return *coefficients_;
 }
 
-std::array<mfem::real_t, ParQuinticSmoothingSpline1D::coefficients_per_interval>
-ParQuinticSmoothingSpline1D::LocalCoefficients(int local_element) const
+std::array<mfem::real_t, QuinticSmoothingSpline1D::coefficients_per_interval>
+QuinticSmoothingSpline1D::LocalCoefficients(int local_element) const
 {
    MFEM_VERIFY(solved_, "Solve the spline system before reading coefficients.");
    MFEM_VERIFY(local_element >= 0 &&
@@ -876,7 +876,7 @@ ParQuinticSmoothingSpline1D::LocalCoefficients(int local_element) const
 //
 // y(x) = (a[n] * t + a[n-1]) *t + a[n-2] + ...
 // y'(x) = n * a[n] * t^(n-1) + ...
-mfem::real_t ParQuinticSmoothingSpline1D::EvaluateLocalElement(
+mfem::real_t QuinticSmoothingSpline1D::EvaluateLocalElement(
    int local_element, mfem::real_t x, int d) const
 {
    MFEM_VERIFY(local_element >= 0 &&
@@ -899,7 +899,7 @@ mfem::real_t ParQuinticSmoothingSpline1D::EvaluateLocalElement(
    return value;
 }
 
-bool ParQuinticSmoothingSpline1D::TryEvaluateLocal(mfem::real_t x,
+bool QuinticSmoothingSpline1D::TryEvaluateLocal(mfem::real_t x,
                                           mfem::real_t &value, int d) const
 {
    MFEM_VERIFY(solved_, "Solve the spline system before evaluation.");
@@ -915,7 +915,7 @@ bool ParQuinticSmoothingSpline1D::TryEvaluateLocal(mfem::real_t x,
    return false;
 }
 
-mfem::real_t ParQuinticSmoothingSpline1D::Evaluate(mfem::real_t x, int d) const
+mfem::real_t QuinticSmoothingSpline1D::Evaluate(mfem::real_t x, int d) const
 {
    MFEM_VERIFY(solved_, "Solve the spline system before evaluation.");
 
@@ -958,7 +958,7 @@ mfem::real_t ParQuinticSmoothingSpline1D::Evaluate(mfem::real_t x, int d) const
    return value;
 }
 
-mfem::Vector ParQuinticSmoothingSpline1D::EvaluateDataGradient(
+mfem::Vector QuinticSmoothingSpline1D::EvaluateDataGradient(
    mfem::real_t x) const
 {
    MFEM_VERIFY(solved_,
@@ -1046,7 +1046,7 @@ mfem::Vector ParQuinticSmoothingSpline1D::EvaluateDataGradient(
    return data_gradient;
 }
 
-mfem::HypreParMatrix ParQuinticSmoothingSpline1D::EvaluateDataJacobian(
+mfem::HypreParMatrix QuinticSmoothingSpline1D::EvaluateDataJacobian(
    const mfem::Vector &evaluation_points) const
 {
    MFEM_VERIFY(solved_,
@@ -1167,7 +1167,7 @@ mfem::HypreParMatrix ParQuinticSmoothingSpline1D::EvaluateDataJacobian(
 }
 
 
-mfem::Vector ParQuinticSmoothingSpline1D::Evaluate(const mfem::Vector &evaluation_pts, int d) const
+mfem::Vector QuinticSmoothingSpline1D::Evaluate(const mfem::Vector &evaluation_pts, int d) const
 {
    MFEM_VERIFY(solved_, "Solve the spline system before evaluation.");
 
@@ -1273,7 +1273,7 @@ mfem::Vector ParQuinticSmoothingSpline1D::Evaluate(const mfem::Vector &evaluatio
    return result;
 }
 
-mfem::Vector ParQuinticSmoothingSpline1D::EvaluateDisplacedNodes(
+mfem::Vector QuinticSmoothingSpline1D::EvaluateDisplacedNodes(
    const mfem::Vector &displacements) const
 {
    MFEM_VERIFY(solved_, "Solve the spline system before evaluation.");
