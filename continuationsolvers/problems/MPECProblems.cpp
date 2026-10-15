@@ -450,10 +450,27 @@ mfem::Operator* MPECProblem::Ddg(const mfem::Vector& U)
     }
   }
 
+  // The stationarity residual is
+  //
+  //   F_1 = E_u - g_u^T p.
+  //
+  // ParamOptProblem::Dddgl and Ddthgl return derivatives of +p^T g,
+  // so both contributions enter the Jacobian of F_1 with a minus sign.
+  std::unique_ptr<mfem::HypreParMatrix> negative_hessddgl(
+      new mfem::HypreParMatrix(*hessddgl));
+  mfem::Vector dd_scale(negative_hessddgl->Height());
+  dd_scale = -1.0;
+  negative_hessddgl->ScaleRows(dd_scale);
   std::unique_ptr<mfem::HypreParMatrix> hessddL;
-  hessddL.reset(ParAdd(hessddE, hessddgl));
+  hessddL.reset(ParAdd(hessddE, negative_hessddgl.get()));
+
+  std::unique_ptr<mfem::HypreParMatrix> negative_hessdthgl(
+      new mfem::HypreParMatrix(*hessdthgl));
+  mfem::Vector dth_scale(negative_hessdthgl->Height());
+  dth_scale = -1.0;
+  negative_hessdthgl->ScaleRows(dth_scale);
   std::unique_ptr<mfem::HypreParMatrix> hessdthL;
-  hessdthL.reset(ParAdd(hessdthE, hessdthgl));
+  hessdthL.reset(ParAdd(hessdthE, negative_hessdthgl.get()));
   blockmat(0, 0) = hessddL.get();
   blockmat(0, 1) = jacdgT.get();
   blockmat(0, 2) = hessdthL.get();
@@ -519,6 +536,22 @@ mfem::Operator* MPECProblem::Dddgl(const mfem::Vector& U, const mfem::Vector& l)
   std::unique_ptr<mfem::HypreParMatrix> Hththcl;
   Hththcl.reset(ParAdd(HththuEl1_mat, Hththgl2_mat));
 
+  // lambda_2^T g(u,theta) contributes its ordinary mixed Hessian to
+  // the outer equality-constraint Hessian.  Third derivatives of g in the
+  // stationarity equation remain intentionally omitted here.
+  mfem::HypreParMatrix* Huthgl2_mat =
+      dynamic_cast<mfem::HypreParMatrix*>(paramopt->Ddthgl(
+          Ublk.GetBlock(0), lblk.GetBlock(1), Ublk.GetBlock(2)));
+  mfem::HypreParMatrix* HthudEl1_mat =
+      dynamic_cast<mfem::HypreParMatrix*>(paramopt->DthddEl(
+          Ublk.GetBlock(0), lblk.GetBlock(0), Ublk.GetBlock(2)));
+  MFEM_VERIFY(Huthgl2_mat && HthudEl1_mat, "CAST issue");
+  std::unique_ptr<mfem::HypreParMatrix> HuthEl1(
+      HthudEl1_mat->Transpose());
+  std::unique_ptr<mfem::HypreParMatrix> Huthcl(
+      ParAdd(HuthEl1.get(), Huthgl2_mat));
+  std::unique_ptr<mfem::HypreParMatrix> Hthucl(Huthcl->Transpose());
+
   //
   mfem::HypreParMatrix* Hpucl_mat =
       dynamic_cast<mfem::HypreParMatrix*>(paramopt->Dddgl2(Ublk.GetBlock(0), lblk.GetBlock(0), Ublk.GetBlock(2)));
@@ -551,6 +584,8 @@ mfem::Operator* MPECProblem::Dddgl(const mfem::Vector& U, const mfem::Vector& l)
   }
 
   blockmat(0, 0) = Huucl.get();
+  blockmat(0, 2) = Huthcl.get();
+  blockmat(2, 0) = Hthucl.get();
   blockmat(2, 2) = Hththcl.get();
   blockmat(3, 3) = DsslPhi.get();
   blockmat(3, 4) = DszlPhi.get();
