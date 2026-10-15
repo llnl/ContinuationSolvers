@@ -109,4 +109,4 @@ $(MFEM_LIB_FILE):
 
 .PHONY: clean
 clean:
-	rm -f *.o Spline/*.o $(PROB_DIR)/*.o $(SOLVER_DIR)/*.o $(TEST_LIB_DIR)/*.o $(TEST_LIB_DIR)/*.a TestProblem1 TestProblem1a TestProblem1b TestProblem1c TestProblem2 TestProblem3 TestProblem4 TestProblem4a TestProblem5 LibTestProblem TestObstacleProblem TestSphericalObstacleProblem ObstacleDesignProblem elastic_body_mesh_example elastic_body_elasticity_example spline_contact_example
+	rm -f *.o Spline/*.o $(PROB_DIR)/*.o $(SOLVER_DIR)/*.o $(TESTLIB_DIR)/*.o $(TESTLIB_DIR)/*.a TestProblem1 TestProblem1a TestProblem1b TestProblem1c TestProblem2 TestProblem3 TestProblem4 TestProblem4a TestProblem5 LibTestProblem TestObstacleProblem TestSphericalObstacleProblem ObstacleDesignProblem elastic_body_mesh_example elastic_body_elasticity_example spline_contact_example
