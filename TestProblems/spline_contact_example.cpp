@@ -10,16 +10,17 @@
 #include "spline_contact_problem.hpp"
 #include "../continuationsolvers/solvers/IPSolver.hpp"
 
-namespace
-{
 
 enum BoundaryAttribute
 {
-   CONTACT = 1,
+   BOTTOM = 1,
    RIGHT = 2,
-   CLAMPED_TOP = 3,
+   TOP = 3,
    LEFT = 4
 };
+
+namespace
+{
 
 enum RigidBlockBoundaryAttribute
 {
@@ -170,7 +171,7 @@ public:
    }
 };
 
-mfem::real_t GlobalNorm(const mfem::Vector &v, MPI_Comm comm)
+mfem::real_t Global2Norm(const mfem::Vector &v, MPI_Comm comm)
 {
    return mfem::GlobalLpNorm(2, v.Norml2(), comm);
 }
@@ -197,7 +198,7 @@ void CheckContactDerivatives(ElasticSplineContactProblem &problem,
    mfem::Vector direction(d.Size());
    direction.Randomize(271828);
    direction -= 0.5;
-   const mfem::real_t direction_norm = GlobalNorm(direction, comm);
+   const mfem::real_t direction_norm = Global2Norm(direction, comm);
    MFEM_VERIFY(direction_norm > 0.0,
                "Unable to construct a derivative-check direction.");
    direction /= direction_norm;
@@ -224,8 +225,8 @@ void CheckContactDerivatives(ElasticSplineContactProblem &problem,
    mfem::Vector jacobian_error(jacobian_action);
    jacobian_error -= finite_difference;
    const mfem::real_t jacobian_relative_error =
-      GlobalNorm(jacobian_error, comm) /
-      std::max<mfem::real_t>(1.0, GlobalNorm(finite_difference, comm));
+      Global2Norm(jacobian_error, comm) /
+      std::max<mfem::real_t>(1.0, Global2Norm(finite_difference, comm));
 
    mfem::Vector multiplier(problem.GetDimM());
    multiplier = 1.0;
@@ -242,9 +243,9 @@ void CheckContactDerivatives(ElasticSplineContactProblem &problem,
    mfem::Vector hessian_error(hessian_action);
    hessian_error -= gradient_finite_difference;
    const mfem::real_t hessian_relative_error =
-      GlobalNorm(hessian_error, comm) /
+      Global2Norm(hessian_error, comm) /
       std::max<mfem::real_t>(1.0,
-                             GlobalNorm(gradient_finite_difference, comm));
+                             Global2Norm(gradient_finite_difference, comm));
 
    if (rank == 0)
    {
@@ -369,9 +370,9 @@ int main(int argc, char *argv[])
          mfem::Ordering::byVDIM);
 
       const mfem::Array<int> top_marker =
-         MakeBoundaryMarker(body_mesh, CLAMPED_TOP);
+         MakeBoundaryMarker(body_mesh, BoundaryAttribute::TOP);
       const mfem::Array<int> left_marker =
-         MakeBoundaryMarker(body_mesh, LEFT);
+         MakeBoundaryMarker(body_mesh, BoundaryAttribute::LEFT);
       mfem::Array<int> clamped_true_dofs;
       mfem::Array<int> left_x_true_dofs;
       displacement_space.GetEssentialTrueDofs(top_marker,
@@ -384,6 +385,7 @@ int main(int argc, char *argv[])
       essential_true_dofs.Sort();
       essential_true_dofs.Unique();
 
+      // setup forcing terms, body + traction
       mfem::Vector body_force(dimension);
       body_force = 0.0;
       body_force[1] = body_force_y;
@@ -393,7 +395,7 @@ int main(int argc, char *argv[])
       traction[1] = traction_y;
       mfem::VectorConstantCoefficient traction_coefficient(traction);
       mfem::Array<int> right_marker =
-         MakeBoundaryMarker(body_mesh, RIGHT);
+         MakeBoundaryMarker(body_mesh, BoundaryAttribute::RIGHT);
 
       mfem::ParLinearForm load(&displacement_space);
       load.AddDomainIntegrator(
@@ -468,7 +470,7 @@ int main(int argc, char *argv[])
 
       ElasticSplineContactProblem problem(
          displacement_space, elasticity, load, essential_true_dofs,
-         CONTACT, surface_spline, surface_x_min, surface_x_max);
+         BoundaryAttribute::BOTTOM, surface_spline, surface_x_min, surface_x_max);
 
       mfem::Vector initial_displacement(problem.GetDimU());
       initial_displacement = 0.0;
@@ -490,8 +492,8 @@ int main(int argc, char *argv[])
       FullHessianInteriorPointSolver optimizer(&problem);
       optimizer.SetTol(optimization_tolerance);
       optimizer.SetMaxIter(maximum_iterations);
-      optimizer.SetPrintLevel(rank == 0 ? 2 : 0);
-      optimizer.CheckLinearSystemResiduals();
+      optimizer.SetPrintLevel(2);
+      //optimizer.CheckLinearSystemResiduals();
       optimizer.Mult(initial_displacement, final_displacement);
 
       int final_gap_error = 0;
@@ -597,14 +599,20 @@ int main(int argc, char *argv[])
                    << final_minimum_gap << '\n'
                    << "  final potential energy = " << final_energy << '\n'
                    << "  spline linear residual = "
-                   << spline_result.final_norm << '\n'
-                   << "  interior-point converged = "
-                   << (optimizer.GetConverged() ? "yes" : "no") << '\n'
-                   << "ParaView output: " << paraview_prefix
-                   << "/ElasticSplineContact and " << paraview_prefix
-                   << "/ElasticSplineContactRigidBlock\n"
-                   << "Spline diagnostic output: " << paraview_prefix
-                   << "/ElasticSplineContactSurface\n";
+                   << spline_result.final_norm << '\n';
+         if (optimizer.GetConverged())
+         {
+           std::cout << "interior-point solver converged\n";
+         } 
+         else
+         {
+           std::cout << "interior-point solver did not converge\n";
+         }
+           std::cout << "ParaView output: " << paraview_prefix
+                     << "/ElasticSplineContact and " << paraview_prefix
+                     << "/ElasticSplineContactRigidBlock\n"
+                     << "Spline diagnostic output: " << paraview_prefix
+                     << "/ElasticSplineContactSurface\n";
       }
    }
 
