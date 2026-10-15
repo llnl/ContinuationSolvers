@@ -13,6 +13,9 @@ TestProblems/*/*
 #Re-include TestProblems/meshes
 !TestProblems/meshes/*
 
+#Re-include TestProblems/SplineDrivers
+!TestProblems/SplineDrivers/*
+
 # remove files
 *.a
 *.o
