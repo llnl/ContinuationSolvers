@@ -93,15 +93,6 @@ ObstacleDesignProblem: ObstacleDesignProblem.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE
 TestSphericalObstacleProblem: TestSphericalObstacleProblem.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
 	$(MFEM_CXX) $(MFEM_FLAGS) TestSphericalObstacleProblem.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
 
-#elastic_body_mesh_example: elastic_body_mesh_example.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
-#	$(MFEM_CXX) $(MFEM_FLAGS) elastic_body_mesh_example.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
-#
-#elastic_body_elasticity_example: elastic_body_elasticity_example.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
-#	$(MFEM_CXX) $(MFEM_FLAGS) elastic_body_elasticity_example.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
-#
-#spline_contact_example: spline_contact_example.o spline_contact_problem.o Spline/quintic_smoothing_spline_1d.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
-#	$(MFEM_CXX) $(MFEM_FLAGS) spline_contact_example.o spline_contact_problem.o Spline/quintic_smoothing_spline_1d.o $(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
-
 elastic_body_mesh_example: \
 	$(SPLINE_DRIVER_DIR)/elastic_body_mesh_example.o \
 	$(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
@@ -109,11 +100,11 @@ elastic_body_mesh_example: \
 		$(SPLINE_DRIVER_DIR)/elastic_body_mesh_example.o \
 		$(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
 
-elastic_body_elasticity_example: \
-	$(SPLINE_DRIVER_DIR)/elastic_body_elasticity_example.o \
+elastic_body_nocontact_example: \
+	$(SPLINE_DRIVER_DIR)/elastic_body_nocontact_example.o \
 	$(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
 	$(MFEM_CXX) $(MFEM_FLAGS) \
-		$(SPLINE_DRIVER_DIR)/elastic_body_elasticity_example.o \
+		$(SPLINE_DRIVER_DIR)/elastic_body_nocontact_example.o \
 		$(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
 
 spline_contact_example: \
@@ -151,4 +142,4 @@ clean:
 	      TestProblem2 TestProblem3 TestProblem4 TestProblem4a TestProblem5 \
 	      LibTestProblem TestObstacleProblem TestSphericalObstacleProblem \
 	      ObstacleDesignProblem elastic_body_mesh_example \
-	      elastic_body_elasticity_example spline_contact_example
+	      elastic_body_nocontact_example spline_contact_example
