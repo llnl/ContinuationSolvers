@@ -118,6 +118,19 @@ spline_contact_example: \
 		$(SPLINE_DIR)/quintic_smoothing_spline_1d.o \
 		$(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
 
+spline_contact_design_example: \
+	$(SPLINE_DRIVER_DIR)/spline_contact_design_example.o \
+	$(SPLINE_DRIVER_DIR)/parametric_spline_contact_problem.o \
+	$(SPLINE_DRIVER_DIR)/spline_contact_design_problem.o \
+	$(SPLINE_DIR)/quintic_smoothing_spline_1d.o \
+	$(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) \
+		$(SPLINE_DRIVER_DIR)/spline_contact_design_example.o \
+		$(SPLINE_DRIVER_DIR)/parametric_spline_contact_problem.o \
+		$(SPLINE_DRIVER_DIR)/spline_contact_design_problem.o \
+		$(SPLINE_DIR)/quintic_smoothing_spline_1d.o \
+		$(FRAMEWORK_OBJS) -o $@ $(MFEM_LIBS)
+
 
 
 LibTestProblem: LibTestProblem.o $(FRAMEWORK_OBJS) $(MFEM_LIB_FILE)
@@ -142,4 +155,5 @@ clean:
 	      TestProblem2 TestProblem3 TestProblem4 TestProblem4a TestProblem5 \
 	      LibTestProblem TestObstacleProblem TestSphericalObstacleProblem \
 	      ObstacleDesignProblem elastic_body_mesh_example \
-	      elastic_body_nocontact_example spline_contact_example
+	      elastic_body_nocontact_example spline_contact_example \
+	      spline_contact_design_example

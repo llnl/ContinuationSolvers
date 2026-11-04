@@ -110,6 +110,11 @@ public:
 
    mfem::real_t DataFidelity() const { return data_fidelity_; }
 
+   const mfem::ParFiniteElementSpace &DataSpace() const
+   {
+      return *input_space_;
+   }
+
    /**
     * Collectively replace y without rebuilding or refactorizing the system.
     * local_true_y uses the input space's locally owned true-DOF ordering.
@@ -161,11 +166,12 @@ public:
                          int d = 0) const;
 
    /**
-    * Collectively return the locally owned portion of grad_y S(x). A direct
-    * solve must have been completed so the retained MUMPS factorization can
-    * perform the transpose solve.
+    * Collectively return the locally owned portion of
+    * grad_y S^(derivative_order)(x). A direct solve must have been completed
+    * so the retained MUMPS factorization can perform the transpose solve.
     */
-   mfem::Vector EvaluateDataGradient(mfem::real_t x) const;
+   mfem::Vector EvaluateDataGradient(mfem::real_t x,
+                                     int derivative_order = 0) const;
 
    /**
     * Collectively assemble the Jacobian of the spline values at a
@@ -174,7 +180,7 @@ public:
     * row ordering is the concatenation of those vectors in MPI-rank order.
     * The columns use the input finite element space's true-DOF partitioning:
     *
-    *   J(i,j) = d S(evaluation_points_i) / d y_j.
+    *   J(i,j) = d S^(derivative_order)(evaluation_points_i) / d y_j.
     *
     * Thus each row is the distributed gradient returned by
     * EvaluateDataGradient for the corresponding point. Every point must lie
@@ -182,7 +188,8 @@ public:
     * with direct_solver=true.
     */
    mfem::HypreParMatrix EvaluateDataJacobian(
-      const mfem::Vector &evaluation_points) const;
+      const mfem::Vector &evaluation_points,
+      int derivative_order = 0) const;
 
 private:
    struct Neighbor

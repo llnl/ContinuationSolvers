@@ -959,7 +959,7 @@ mfem::real_t QuinticSmoothingSpline1D::Evaluate(mfem::real_t x, int d) const
 }
 
 mfem::Vector QuinticSmoothingSpline1D::EvaluateDataGradient(
-   mfem::real_t x) const
+   mfem::real_t x, int derivative_order) const
 {
    MFEM_VERIFY(solved_,
                "Solve the spline system before evaluating its gradient.");
@@ -968,6 +968,9 @@ mfem::Vector QuinticSmoothingSpline1D::EvaluateDataGradient(
                "direct_solver=true.");
    MFEM_VERIFY(A_ != nullptr && rhs_data_jacobian_ != nullptr,
                "The spline derivative operators are unavailable.");
+   MFEM_VERIFY(derivative_order >= 0 && derivative_order <= order,
+               "The spline data-gradient derivative order must be between "
+               "zero and five.");
 
    // As in Evaluate(), require every rank to participate with the same point.
    const int local_x_is_finite = std::isfinite(x) ? 1 : 0;
@@ -1014,8 +1017,10 @@ mfem::Vector QuinticSmoothingSpline1D::EvaluateDataGradient(
                "No MPI rank owns an interval containing the gradient "
                "evaluation point.");
 
-   // grad_a S(x) is zero except for the six normalized basis functions on
-   // the selected interval: [1, t, t^2, t^3, t^4, t^5].
+   // grad_a S^(d)(x) is zero except on the selected interval. For j >= d,
+   // its entry associated with a_j is
+   //
+   //   (j!/(j-d)!) t^(j-d) / h^d.
    mfem::HypreParVector coefficient_gradient(*A_);
    coefficient_gradient = 0.0;
    if (rank_ == evaluator_rank)
@@ -1029,14 +1034,19 @@ mfem::Vector QuinticSmoothingSpline1D::EvaluateDataGradient(
       const int offset = coefficients_per_interval * local_element;
       mfem::real_t *gradient_data = coefficient_gradient.HostWrite();
       mfem::real_t basis_value = 1.0;
-      for (int j = 0; j <= order; ++j)
+      const mfem::real_t derivative_scale =
+         1.0 / std::pow(h, derivative_order);
+      for (int j = derivative_order; j <= order; ++j)
       {
-         gradient_data[offset + j] = basis_value;
+         gradient_data[offset + j] =
+            FallingFactorial(j, derivative_order) * basis_value *
+            derivative_scale;
          basis_value *= t;
       }
    }
 
-   // A^T lambda = grad_a S(x), followed by grad_y S(x) = B^T lambda.
+   // A^T lambda = grad_a S^(d)(x), followed by
+   // grad_y S^(d)(x) = B^T lambda.
    mfem::HypreParVector adjoint(*A_);
    adjoint = 0.0;
    direct_solver_->MultTranspose(coefficient_gradient, adjoint);
@@ -1047,7 +1057,7 @@ mfem::Vector QuinticSmoothingSpline1D::EvaluateDataGradient(
 }
 
 mfem::HypreParMatrix QuinticSmoothingSpline1D::EvaluateDataJacobian(
-   const mfem::Vector &evaluation_points) const
+   const mfem::Vector &evaluation_points, int derivative_order) const
 {
    MFEM_VERIFY(solved_,
                "Solve the spline system before evaluating its Jacobian.");
@@ -1056,6 +1066,9 @@ mfem::HypreParMatrix QuinticSmoothingSpline1D::EvaluateDataJacobian(
                "direct_solver=true.");
    MFEM_VERIFY(A_ != nullptr && rhs_data_jacobian_ != nullptr,
                "The spline derivative operators are unavailable.");
+   MFEM_VERIFY(derivative_order >= 0 && derivative_order <= order,
+               "The spline data-Jacobian derivative order must be between "
+               "zero and five.");
 
    const int local_point_count = evaluation_points.Size();
    const mfem::real_t *local_point_data = evaluation_points.HostRead();
@@ -1128,7 +1141,8 @@ mfem::HypreParMatrix QuinticSmoothingSpline1D::EvaluateDataJacobian(
    for (int global_row = 0; global_row < global_point_count; ++global_row)
    {
       const mfem::Vector gradient = EvaluateDataGradient(
-         global_points[static_cast<std::size_t>(global_row)]);
+         global_points[static_cast<std::size_t>(global_row)],
+         derivative_order);
       MFEM_VERIFY(gradient.Size() == local_data_size,
                   "EvaluateDataGradient returned an incompatible local "
                   "true-DOF vector.");
