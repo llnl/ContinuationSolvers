@@ -1,23 +1,34 @@
 #include "utilities.hpp"
 #include "mfem.hpp"
 
+#include <vector>
+
 mfem::HypreParMatrix *
 GenerateHypreParMatrixFromSparseMatrix(HYPRE_BigInt *rowOffsetsloc,
                                        HYPRE_BigInt *colOffsetsloc,
                                        mfem::SparseMatrix *Asparse) {
   int ncols_loc = colOffsetsloc[1] - colOffsetsloc[0];
   int nrows_loc = rowOffsetsloc[1] - rowOffsetsloc[0];
+  HYPRE_BigInt ncols_loc_hypre = ncols_loc;
+  HYPRE_BigInt nrows_loc_hypre = nrows_loc;
   HYPRE_BigInt ncols_glb, nrows_glb;
-  MPI_Allreduce(&nrows_loc, &nrows_glb, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(&ncols_loc, &ncols_glb, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(&nrows_loc_hypre, &nrows_glb, 1, HYPRE_MPI_BIG_INT, MPI_SUM,
+                MPI_COMM_WORLD);
+  MPI_Allreduce(&ncols_loc_hypre, &ncols_glb, 1, HYPRE_MPI_BIG_INT, MPI_SUM,
+                MPI_COMM_WORLD);
 
   int *AI = Asparse->GetI();
-  HYPRE_BigInt *AJ = Asparse->GetJ();
+  int *AJ = Asparse->GetJ();
+  std::vector<HYPRE_BigInt> AJ_hypre(static_cast<size_t>(AI[nrows_loc]));
+  for (int i = 0; i < AI[nrows_loc]; i++) {
+    AJ_hypre[i] = AJ[i];
+  }
   double *Adata = Asparse->GetData();
 
   mfem::HypreParMatrix *Ahypre =
       new mfem::HypreParMatrix(MPI_COMM_WORLD, nrows_loc, nrows_glb, ncols_glb,
-                               AI, AJ, Adata, rowOffsetsloc, colOffsetsloc);
+                               AI, AJ_hypre.data(), Adata, rowOffsetsloc,
+                               colOffsetsloc);
   return Ahypre;
 }
 
@@ -135,9 +146,10 @@ HYPRE_BigInt *offsetsFromLocalSizes(int n, MPI_Comm comm) {
     helper = new HYPRE_BigInt[static_cast<size_t>(myrank)];
   }
   int tag;
+  HYPRE_BigInt n_hypre = n;
   for (int i = 0; i < myrank; i++) {
     tag = myrank + i * nprocs;
-    MPI_Recv(&(helper[i]), 1, MPI_INT, i, tag, MPI_COMM_WORLD,
+    MPI_Recv(&(helper[i]), 1, HYPRE_MPI_BIG_INT, i, tag, MPI_COMM_WORLD,
              MPI_STATUS_IGNORE);
     offsets[0] += helper[i];
   }
@@ -150,7 +162,7 @@ HYPRE_BigInt *offsetsFromLocalSizes(int n, MPI_Comm comm) {
   // Send local size info to all processes with rank greater than myrank
   for (int i = myrank + 1; i < nprocs; i++) {
     tag = i + myrank * nprocs;
-    MPI_Send(&n, 1, MPI_INT, i, tag, MPI_COMM_WORLD);
+    MPI_Send(&n_hypre, 1, HYPRE_MPI_BIG_INT, i, tag, MPI_COMM_WORLD);
   }
   return offsets;
 }
@@ -182,11 +194,12 @@ mfem::HypreParMatrix *NonZeroRowMap(const mfem::HypreParMatrix &A) {
   nzRowMap.Finalize();
 
   auto comm = A.GetComm();
-  int rows_part[2];
-  int cols_part[2];
+  HYPRE_BigInt rows_part[2];
+  HYPRE_BigInt cols_part[2];
 
-  int row_offset;
-  MPI_Scan(&numNZRows, &row_offset, 1, MPI_INT, MPI_SUM, comm);
+  HYPRE_BigInt numNZRows_hypre = numNZRows;
+  HYPRE_BigInt row_offset;
+  MPI_Scan(&numNZRows_hypre, &row_offset, 1, HYPRE_MPI_BIG_INT, MPI_SUM, comm);
 
   row_offset -= numNZRows;
   rows_part[0] = row_offset;
@@ -194,12 +207,21 @@ mfem::HypreParMatrix *NonZeroRowMap(const mfem::HypreParMatrix &A) {
   for (int i = 0; i < 2; i++) {
     cols_part[i] = A.RowPart()[i];
   }
-  int glob_nrows;
-  int glob_ncols = A.GetGlobalNumRows();
-  MPI_Allreduce(&numNZRows, &glob_nrows, 1, MPI_INT, MPI_SUM, comm);
+  HYPRE_BigInt glob_nrows;
+  HYPRE_BigInt glob_ncols = A.GetGlobalNumRows();
+  MPI_Allreduce(&numNZRows_hypre, &glob_nrows, 1, HYPRE_MPI_BIG_INT, MPI_SUM,
+                comm);
+
+  int *nzRowMapI = nzRowMap.GetI();
+  int *nzRowMapJ = nzRowMap.GetJ();
+  std::vector<HYPRE_BigInt> nzRowMapJ_hypre(
+      static_cast<size_t>(nzRowMapI[numNZRows]));
+  for (int i = 0; i < nzRowMapI[numNZRows]; i++) {
+    nzRowMapJ_hypre[i] = nzRowMapJ[i];
+  }
 
   return new mfem::HypreParMatrix(comm, numNZRows, glob_nrows, glob_ncols,
-                                  nzRowMap.GetI(), nzRowMap.GetJ(),
+                                  nzRowMapI, nzRowMapJ_hypre.data(),
                                   nzRowMap.GetData(), rows_part, cols_part);
   // HypreStealOwnership(*out, nzRowMap);
 }
@@ -292,7 +314,7 @@ mfem::HypreParMatrix *GenerateNullHypreParMatrix(HYPRE_BigInt *rowOffsets,
   }
   // determine global number of columns
   HYPRE_Int N = 0;
-  MPI_Allreduce(&n, &N, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(&n, &N, 1, HYPRE_MPI_INT, MPI_SUM, MPI_COMM_WORLD);
   auto temp =
       std::unique_ptr<mfem::SparseMatrix>(new mfem::SparseMatrix(m, N, nnz));
 
